@@ -104,6 +104,21 @@
   .acc-date { font-size: 11px; color: #c0c4cc; flex-shrink: 0; }
   .acc-del { cursor: pointer; color: #c0c4cc; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
   .acc-del:hover { color: #f56c6c; background: #fef0f0; }
+  /* 账本切换 */
+  .ledger-tab { display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:#f5f7fa;color:#606266;cursor:pointer;font-size:13px;border:1px solid transparent;transition:all .2s; }
+  .ledger-tab:hover { background:#ecf5ff;color:#409eff; }
+  .ledger-tab.active { background:linear-gradient(135deg,#667eea,#764ba2);color:#fff; }
+  .ledger-tab .del { opacity:.6;font-size:11px; }
+  .ledger-tab .del:hover { opacity:1; }
+  /* 共同账本结算 */
+  .settle-row { display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #f0f0f0; }
+  .settle-row:last-child { border-bottom:none; }
+  .settle-name { font-size:13px;color:#303133;font-weight:500; }
+  .settle-amount { font-size:13px;font-weight:600; }
+  .settle-owe { color:#f5222d; }
+  .settle-get { color:#52c41a; }
+  .settle-bal { color:#909399; }
+  .settle-transfer { margin-top:10px;padding:10px;background:#fff8e1;border-radius:8px;font-size:12px;color:#8a6d3b; }
 
   /* 待完成事项 */
   .hltodo-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
@@ -1685,6 +1700,15 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
 
       <!-- 记账本 模块 -->
       <div id="hl-account-panel" class="hl-panel" style="display:none;">
+        <!-- 账本切换 -->
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-body" style="padding:12px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div id="ledger-tabs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+              <button class="btn btn-ghost btn-sm" onclick="openLedgerManager()">⚙️ 账本管理</button>
+            </div>
+          </div>
+        </div>
         <!-- 月份切换 -->
         <div class="panel" style="margin-bottom:16px;">
           <div class="panel-header">
@@ -1703,6 +1727,13 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
           <div class="stat-card"><div class="label">本月支出</div><div class="value" id="acc-expense" style="color:#f5222d;">0<span class="unit">元</span></div></div>
           <div class="stat-card"><div class="label">本月结余</div><div class="value" id="acc-balance">0<span class="unit">元</span></div></div>
           <div class="stat-card"><div class="label">笔数</div><div class="value" id="acc-count">0<span class="unit">笔</span></div></div>
+        </div>
+        <!-- 共同账本结算 -->
+        <div class="panel" id="acc-settlement-panel" style="margin-bottom:16px;display:none;">
+          <div class="panel-header"><h3>🤝 结算明细</h3><span style="font-size:12px;color:#909399;">本月人均支出</span></div>
+          <div class="panel-body" style="padding:12px 20px;">
+            <div id="acc-settlement"></div>
+          </div>
         </div>
         <!-- 账单列表 -->
         <div class="panel">
@@ -7140,6 +7171,25 @@ let accounts = JSON.parse(localStorage.getItem('hy_accounts') || '[]');
 let accViewDate = new Date();
 function saveAccounts() { localStorage.setItem('hy_accounts', JSON.stringify(accounts)); }
 
+// 账本列表（个人账本 + 共同账本）
+let ledgers = JSON.parse(localStorage.getItem('hy_ledgers') || 'null');
+if (!ledgers) {
+  ledgers = [
+    { id: 'personal', name: '个人账本', type: 'personal', icon: '👤', members: [{ id: 'me', name: '我' }], createdAt: Date.now() }
+  ];
+  // 迁移：给已有账单补上 ledgerId
+  accounts.forEach(r => { if (!r.ledgerId) r.ledgerId = 'personal'; });
+  saveAccounts();
+  saveLedgers();
+}
+let currentLedgerId = ledgers[0] ? ledgers[0].id : 'personal';
+function saveLedgers() { localStorage.setItem('hy_ledgers', JSON.stringify(ledgers)); }
+function getLedger(id) { return ledgers.find(l => l.id === id) || ledgers[0]; }
+function getMemberName(ledger, memberId) {
+  const m = (ledger.members || []).find(x => x.id === memberId);
+  return m ? m.name : memberId;
+}
+
 const accCategories = {
   income: [
     { key: 'salary', name: '工资', icon: '💰' },
@@ -7166,12 +7216,70 @@ function getCat(type, key) { return (accCategories[type] || []).find(c => c.key 
 function accPrevMonth() { accViewDate.setMonth(accViewDate.getMonth() - 1); renderAccounts(); }
 function accNextMonth() { accViewDate.setMonth(accViewDate.getMonth() + 1); renderAccounts(); }
 
+// 渲染账本切换栏
+function renderLedgerTabs() {
+  const box = document.getElementById('ledger-tabs');
+  if (!box) return;
+  box.innerHTML = ledgers.map(l => `
+    <span class="ledger-tab ${l.id === currentLedgerId ? 'active' : ''}" onclick="switchLedger('${l.id}')">
+      <span>${l.icon} ${escapeHtml(l.name)}</span>
+      <span style="font-size:11px;opacity:.8;">${l.type === 'shared' ? '共同' : '个人'}</span>
+      ${l.id !== 'personal' ? `<span class="del" onclick="event.stopPropagation();deleteLedger('${l.id}')">✕</span>` : ''}
+    </span>
+  `).join('');
+}
+
+function switchLedger(id) {
+  currentLedgerId = id;
+  renderLedgerTabs();
+  renderAccounts();
+}
+
+// 计算共同账本结算（每人应付 / 已付 / 差额）
+function calcSettlement(records, ledger) {
+  const members = ledger.members || [];
+  const result = {};
+  members.forEach(m => { result[m.id] = { name: m.name, paid: 0, shouldPay: 0, balance: 0 }; });
+  records.forEach(r => {
+    if (r.type !== 'expense') return;
+    const payer = r.payer || members[0]?.id;
+    const sharedBy = r.sharedBy && r.sharedBy.length ? r.sharedBy : members.map(m => m.id);
+    const perPerson = r.amount / sharedBy.length;
+    if (result[payer]) result[payer].paid += r.amount;
+    sharedBy.forEach(mid => { if (result[mid]) result[mid].shouldPay += perPerson; });
+  });
+  Object.values(result).forEach(r => { r.balance = +(r.paid - r.shouldPay).toFixed(2); });
+  return result;
+}
+
+// 生成转账建议（谁该给谁多少钱）
+function calcTransfers(settlement) {
+  const debtors = Object.values(settlement).filter(r => r.balance < -0.01).map(r => ({ ...r, balance: -r.balance })).sort((a, b) => b.balance - a.balance);
+  const creditors = Object.values(settlement).filter(r => r.balance > 0.01).sort((a, b) => b.balance - a.balance);
+  const transfers = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const amt = Math.min(debtors[i].balance, creditors[j].balance);
+    transfers.push({ from: debtors[i].name, to: creditors[j].name, amount: +amt.toFixed(2) });
+    debtors[i].balance -= amt;
+    creditors[j].balance -= amt;
+    if (debtors[i].balance < 0.01) i++;
+    if (creditors[j].balance < 0.01) j++;
+  }
+  return transfers;
+}
+
 function renderAccounts() {
+  renderLedgerTabs();
+  const ledger = getLedger(currentLedgerId);
+  const isShared = ledger.type === 'shared';
   const y = accViewDate.getFullYear();
   const m = accViewDate.getMonth();
   document.getElementById('acc-month-label').textContent = `${y}年${m+1}月`;
   const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`;
-  const monthRecords = accounts.filter(r => r.date.startsWith(monthPrefix)).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  const monthRecords = accounts
+    .filter(r => (r.ledgerId || 'personal') === ledger.id && r.date && r.date.startsWith(monthPrefix))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
   let income = 0, expense = 0;
   monthRecords.forEach(r => { if (r.type === 'income') income += r.amount; else expense += r.amount; });
@@ -7183,6 +7291,30 @@ function renderAccounts() {
   balEl.style.color = balance >= 0 ? '#52c41a' : '#f5222d';
   document.getElementById('acc-count').innerHTML = `${monthRecords.length}<span class="unit">笔</span>`;
 
+  // 共同账本结算
+  const settlePanel = document.getElementById('acc-settlement-panel');
+  const settleBox = document.getElementById('acc-settlement');
+  if (isShared) {
+    settlePanel.style.display = '';
+    const st = calcSettlement(monthRecords, ledger);
+    const memberCount = (ledger.members || []).length || 1;
+    const avg = memberCount > 0 ? (expense / memberCount) : 0;
+    let html = `<div class="settle-row" style="border-bottom:1px solid #f0f0f0;margin-bottom:4px;"><span class="settle-name">本月总支出</span><span class="settle-amount" style="color:#f5222d;">¥${expense.toFixed(2)}</span></div>`;
+    html += `<div class="settle-row"><span class="settle-name">人均支出</span><span class="settle-amount" style="color:#667eea;">¥${avg.toFixed(2)}</span></div>`;
+    Object.values(st).forEach(r => {
+      const cls = r.balance > 0.01 ? 'settle-get' : r.balance < -0.01 ? 'settle-owe' : 'settle-bal';
+      const txt = r.balance > 0.01 ? `应收 ¥${r.balance.toFixed(2)}` : r.balance < -0.01 ? `应付 ¥${(-r.balance).toFixed(2)}` : '已结清';
+      html += `<div class="settle-row"><span class="settle-name">${escapeHtml(r.name)}</span><span class="settle-amount ${cls}">${txt}</span></div>`;
+    });
+    const transfers = calcTransfers(st);
+    if (transfers.length > 0) {
+      html += `<div class="settle-transfer">💡 转账建议：${transfers.map(t => `${escapeHtml(t.from)} → ${escapeHtml(t.to)} ¥${t.amount.toFixed(2)}`).join('；')}</div>`;
+    }
+    settleBox.innerHTML = html;
+  } else {
+    settlePanel.style.display = 'none';
+  }
+
   const list = document.getElementById('account-list');
   if (monthRecords.length === 0) {
     list.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">📒</div><p>本月还没有账单，点击「记一笔」开始记录</p></div>';
@@ -7191,11 +7323,19 @@ function renderAccounts() {
   list.innerHTML = monthRecords.map(r => {
     const cat = getCat(r.type, r.category);
     const isIncome = r.type === 'income';
+    let extra = '';
+    if (isShared && r.type === 'expense') {
+      const payerName = getMemberName(ledger, r.payer);
+      const sharedBy = r.sharedBy && r.sharedBy.length ? r.sharedBy : (ledger.members || []).map(m => m.id);
+      const perPerson = r.amount / sharedBy.length;
+      extra = `<div class="acc-note">👤 ${escapeHtml(payerName)} 付款 · ${sharedBy.length}人分摊 · 人均 ¥${perPerson.toFixed(2)}</div>`;
+    }
     return `<div class="acc-item">
       <div class="acc-icon" style="background:${isIncome ? 'rgba(82,196,26,0.12)' : 'rgba(245,34,45,0.10)'}">${cat.icon}</div>
       <div class="acc-info">
         <div class="acc-cat">${cat.name}</div>
         ${r.note ? `<div class="acc-note">${escapeHtml(r.note)}</div>` : ''}
+        ${extra}
       </div>
       <div class="acc-amount ${isIncome ? 'income' : 'expense'}">${isIncome ? '+' : '-'}¥${r.amount.toFixed(2)}</div>
       <div class="acc-date">${r.date.slice(5)}</div>
@@ -7204,30 +7344,243 @@ function renderAccounts() {
   }).join('');
 }
 
+// 记一笔（弹窗）
 function addAccountEntry() {
+  const ledger = getLedger(currentLedgerId);
+  const isShared = ledger.type === 'shared';
   const today = new Date();
   const dateStr = fmtAccDate(today.getFullYear(), today.getMonth(), today.getDate());
-  const type = confirm('点击「确定」记收入，点击「取消」记支出') ? 'income' : 'expense';
+  const members = ledger.members || [];
+  const cats = accCategories.expense;
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;gap:8px;">
+        <label style="flex:1;cursor:pointer;"><input type="radio" name="acc-type" value="expense" checked onchange="toggleAccCat()"> 💸 支出</label>
+        <label style="flex:1;cursor:pointer;"><input type="radio" name="acc-type" value="income" onchange="toggleAccCat()"> 💰 收入</label>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">分类</label>
+        <select id="acc-cat" class="input" style="width:100%;margin-top:4px;">
+          ${cats.map(c => `<option value="${c.key}">${c.icon} ${c.name}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">金额（元）</label>
+        <input type="number" id="acc-amount" class="input" style="width:100%;margin-top:4px;" step="0.01" placeholder="如：100.00" value="">
+      </div>
+      ${isShared ? `
+        <div>
+          <label style="font-size:12px;color:#606266;">谁付的钱</label>
+          <select id="acc-payer" class="input" style="width:100%;margin-top:4px;">
+            ${members.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:#606266;">谁参与分摊（可多选）</label>
+          <div id="acc-shared" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+            ${members.map(m => `<label style="font-size:13px;cursor:pointer;"><input type="checkbox" class="acc-shared-cb" value="${m.id}" checked> ${m.name}</label>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+      <div>
+        <label style="font-size:12px;color:#606266;">备注（可选）</label>
+        <input type="text" id="acc-note" class="input" style="width:100%;margin-top:4px;" placeholder="如：超市购物">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">日期</label>
+        <input type="date" id="acc-date" class="input" style="width:100%;margin-top:4px;" value="${dateStr}">
+      </div>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = `➕ 记一笔 · ${ledger.name}`;
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = () => {
+    const type = document.querySelector('input[name="acc-type"]:checked').value;
+    const catKey = document.getElementById('acc-cat').value;
+    const amount = parseFloat(document.getElementById('acc-amount').value);
+    const note = document.getElementById('acc-note').value.trim();
+    const date = document.getElementById('acc-date').value || dateStr;
+    if (isNaN(amount) || amount <= 0) { alert('请输入有效金额'); return; }
+    if (!date) { alert('请选择日期'); return; }
+    const record = { id: Date.now(), type, category: catKey, amount, note, date, ledgerId: ledger.id };
+    if (isShared && type === 'expense') {
+      record.payer = document.getElementById('acc-payer').value;
+      const sharedCbs = document.querySelectorAll('.acc-shared-cb:checked');
+      record.sharedBy = Array.from(sharedCbs).map(cb => cb.value);
+      if (record.sharedBy.length === 0) { alert('请至少选择一个分摊成员'); return; }
+    }
+    accounts.push(record);
+    saveAccounts();
+    closeQuick();
+    renderAccounts();
+  };
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function toggleAccCat() {
+  const type = document.querySelector('input[name="acc-type"]:checked').value;
   const cats = accCategories[type];
-  const catKeys = cats.map(c => c.key).join('、');
-  const catKey = prompt(`选择分类（${catKeys}）：输入分类名或序号(1-${cats.length})`, cats[0].name);
-  if (!catKey) return;
-  let cat = cats.find(c => c.name === catKey || c.key === catKey);
-  if (!cat) { const idx = parseInt(catKey) - 1; if (idx >= 0 && idx < cats.length) cat = cats[idx]; }
-  if (!cat) { alert('分类无效'); return; }
-  const amount = parseFloat(prompt(`请输入${type === 'income' ? '收入' : '支出'}金额（元）：`, '100'));
-  if (isNaN(amount) || amount <= 0) { alert('请输入有效金额'); return; }
-  const note = prompt('备注（可选）：', '') || '';
-  const date = prompt('日期（YYYY-MM-DD）：', dateStr) || dateStr;
-  accounts.push({ id: Date.now(), type, category: cat.key, amount, note: note.trim(), date });
-  saveAccounts();
-  renderAccounts();
+  document.getElementById('acc-cat').innerHTML = cats.map(c => `<option value="${c.key}">${c.icon} ${c.name}</option>`).join('');
 }
 
 function deleteAccount(id) {
   if (!confirm('确定删除这笔账单吗？')) return;
   accounts = accounts.filter(r => r.id !== id);
   saveAccounts();
+  renderAccounts();
+}
+
+// ========== 账本管理 ==========
+function openLedgerManager() {
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      ${ledgers.map(l => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f5f7fa;border-radius:8px;">
+          <div>
+            <div style="font-size:14px;font-weight:500;">${l.icon} ${escapeHtml(l.name)}</div>
+            <div style="font-size:11px;color:#909399;margin-top:2px;">
+              ${l.type === 'shared' ? `共同账本 · ${(l.members||[]).length}人` : '个人账本'}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="editLedger('${l.id}')">✏️ 编辑</button>
+            ${l.id !== 'personal' ? `<button class="btn btn-ghost btn-sm" style="color:#f56c6c;" onclick="deleteLedger('${l.id}')">🗑️ 删除</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+      <button class="btn btn-primary" onclick="addLedger()" style="margin-top:4px;">➕ 新建账本</button>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '⚙️ 账本管理';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = closeQuick;
+  document.getElementById('qm-confirm').textContent = '关闭';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function addLedger() {
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">账本类型</label>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <label style="flex:1;cursor:pointer;padding:10px;border:1px solid #dcdfe6;border-radius:8px;text-align:center;font-size:13px;">
+            <input type="radio" name="ledger-type" value="shared" checked> 🏠 共同账本
+            <div style="font-size:11px;color:#909399;margin-top:2px;">支持多人分摊</div>
+          </label>
+          <label style="flex:1;cursor:pointer;padding:10px;border:1px solid #dcdfe6;border-radius:8px;text-align:center;font-size:13px;">
+            <input type="radio" name="ledger-type" value="personal"> 👤 个人账本
+            <div style="font-size:11px;color:#909399;margin-top:2px;">仅自己使用</div>
+          </label>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">账本名称</label>
+        <input type="text" id="new-ledger-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：家庭账本" value="家庭账本">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">图标（emoji）</label>
+        <input type="text" id="new-ledger-icon" class="input" style="width:100%;margin-top:4px;" placeholder="如：🏠" value="🏠" maxlength="2">
+      </div>
+      <div id="new-ledger-members-wrap">
+        <label style="font-size:12px;color:#606266;">成员（逗号分隔）</label>
+        <input type="text" id="new-ledger-members" class="input" style="width:100%;margin-top:4px;" placeholder="如：我,老公,孩子" value="我,老公">
+      </div>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '➕ 新建账本';
+  document.getElementById('qm-body').innerHTML = body;
+  // 切换类型时显示/隐藏成员
+  document.querySelectorAll('input[name="ledger-type"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const wrap = document.getElementById('new-ledger-members-wrap');
+      wrap.style.display = document.querySelector('input[name="ledger-type"]:checked').value === 'shared' ? '' : 'none';
+    });
+  });
+  document.getElementById('qm-confirm').onclick = () => {
+    const type = document.querySelector('input[name="ledger-type"]:checked').value;
+    const name = document.getElementById('new-ledger-name').value.trim();
+    const icon = document.getElementById('new-ledger-icon').value.trim() || (type === 'shared' ? '🏠' : '👤');
+    if (!name) { alert('请输入账本名称'); return; }
+    let members = [];
+    if (type === 'shared') {
+      const memberStr = document.getElementById('new-ledger-members').value;
+      members = memberStr.split(/[,，]/).map((n, i) => ({ id: `m_${Date.now()}_${i}`, name: n.trim() })).filter(m => m.name);
+      if (members.length === 0) { alert('请至少输入一个成员'); return; }
+    } else {
+      members = [{ id: 'me', name: '我' }];
+    }
+    ledgers.push({ id: `l_${Date.now()}`, name, type, icon, members, createdAt: Date.now() });
+    saveLedgers();
+    closeQuick();
+    openLedgerManager();
+    renderAccounts();
+  };
+  document.getElementById('qm-confirm').textContent = '创建';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function editLedger(id) {
+  const l = ledgers.find(x => x.id === id);
+  if (!l) return;
+  if (l.id === 'personal') { alert('个人账本不可编辑'); return; }
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">账本名称</label>
+        <input type="text" id="edit-ledger-name" class="input" style="width:100%;margin-top:4px;" value="${l.name.replace(/"/g,'&quot;')}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">图标（emoji）</label>
+        <input type="text" id="edit-ledger-icon" class="input" style="width:100%;margin-top:4px;" value="${l.icon}" maxlength="2">
+      </div>
+      ${l.type === 'shared' ? `
+        <div>
+          <label style="font-size:12px;color:#606266;">成员（逗号分隔）</label>
+          <input type="text" id="edit-ledger-members" class="input" style="width:100%;margin-top:4px;" value="${l.members.map(m => m.name).join(',').replace(/"/g,'&quot;')}">
+        </div>
+      ` : ''}
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '✏️ 编辑账本';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = () => {
+    const name = document.getElementById('edit-ledger-name').value.trim();
+    const icon = document.getElementById('edit-ledger-icon').value.trim() || l.icon;
+    if (!name) { alert('请输入账本名称'); return; }
+    l.name = name;
+    l.icon = icon;
+    if (l.type === 'shared') {
+      const memberStr = document.getElementById('edit-ledger-members').value;
+      const newNames = memberStr.split(/[,，]/).map(n => n.trim()).filter(n => n);
+      const newMembers = [];
+      newNames.forEach(n => {
+        const existing = l.members.find(m => m.name === n);
+        newMembers.push(existing || { id: `m_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name: n });
+      });
+      l.members = newMembers;
+    }
+    saveLedgers();
+    closeQuick();
+    openLedgerManager();
+    renderAccounts();
+  };
+  document.getElementById('qm-confirm').textContent = '保存';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function deleteLedger(id) {
+  const l = ledgers.find(x => x.id === id);
+  if (!l) return;
+  if (l.id === 'personal') { alert('个人账本不可删除'); return; }
+  if (!confirm(`确定删除账本「${l.name}」吗？该账本下的所有账单也会被删除。`)) return;
+  accounts = accounts.filter(r => r.ledgerId !== id);
+  ledgers = ledgers.filter(x => x.id !== id);
+  saveAccounts();
+  saveLedgers();
+  if (currentLedgerId === id) currentLedgerId = 'personal';
+  closeQuick();
   renderAccounts();
 }
 
