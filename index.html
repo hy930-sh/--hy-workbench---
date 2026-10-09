@@ -1761,6 +1761,15 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
 
       <!-- 身体数据 模块 -->
       <div id="hl-body-panel" class="hl-panel" style="display:none;">
+        <!-- 成员切换 -->
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-body" style="padding:12px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div id="body-member-tabs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+              <button class="btn btn-ghost btn-sm" onclick="openBodyMemberManager()">⚙️ 成员管理</button>
+            </div>
+          </div>
+        </div>
         <!-- 当前身体数据概览 -->
         <div class="stat-cards" style="margin-bottom:16px;">
           <div class="stat-card"><div class="label">身高</div><div class="value" id="body-height">148<span class="unit">cm</span></div></div>
@@ -7724,9 +7733,24 @@ function deleteDebt(id) {
 
 // ========== 健康与生活 · 身体数据 ==========
 let bodyRecords = JSON.parse(localStorage.getItem('hy_body_records') || '[]');
-const BODY_HEIGHT = 148; // 身高固定 148cm
+const BODY_HEIGHT = 148; // 身高固定 148cm（默认成员）
 let bodyChartType = 'weight';
 function saveBody() { localStorage.setItem('hy_body_records', JSON.stringify(bodyRecords)); }
+
+// 身体数据成员列表
+let bodyMembers = JSON.parse(localStorage.getItem('hy_body_members') || 'null');
+if (!bodyMembers) {
+  bodyMembers = [
+    { id: 'me', name: '我', icon: '👤', height: 148 }
+  ];
+  // 迁移：给已有记录补上 memberId
+  bodyRecords.forEach(r => { if (!r.memberId) r.memberId = 'me'; });
+  saveBody();
+  localStorage.setItem('hy_body_members', JSON.stringify(bodyMembers));
+}
+let currentBodyMemberId = bodyMembers[0] ? bodyMembers[0].id : 'me';
+function saveBodyMembers() { localStorage.setItem('hy_body_members', JSON.stringify(bodyMembers)); }
+function getBodyMember(id) { return bodyMembers.find(m => m.id === id) || bodyMembers[0]; }
 
 const bodyFields = [
   { key: 'weight', label: '体重', unit: 'kg' },
@@ -7738,9 +7762,9 @@ const bodyFields = [
   { key: 'arm', label: '臂围', unit: 'cm' }
 ];
 
-function calcBMI(weight) {
-  if (!weight) return null;
-  const h = BODY_HEIGHT / 100;
+function calcBMI(weight, height) {
+  if (!weight || !height) return null;
+  const h = height / 100;
   return weight / (h * h);
 }
 
@@ -7752,9 +7776,32 @@ function getBMIStatus(bmi) {
   return { text: '肥胖', color: '#f5222d' };
 }
 
+// 渲染成员切换栏
+function renderBodyMemberTabs() {
+  const box = document.getElementById('body-member-tabs');
+  if (!box) return;
+  box.innerHTML = bodyMembers.map(m => `
+    <span class="ledger-tab ${m.id === currentBodyMemberId ? 'active' : ''}" onclick="switchBodyMember('${m.id}')">
+      <span>${m.icon} ${escapeHtml(m.name)}</span>
+      <span style="font-size:11px;opacity:.8;">${m.height}cm</span>
+      ${m.id !== 'me' ? `<span class="del" onclick="event.stopPropagation();deleteBodyMember('${m.id}')">✕</span>` : ''}
+    </span>
+  `).join('');
+}
+
+function switchBodyMember(id) {
+  currentBodyMemberId = id;
+  renderBodyMemberTabs();
+  renderBody();
+}
+
 function renderBody() {
-  // 按日期排序
-  const sorted = [...bodyRecords].sort((a, b) => a.date.localeCompare(b.date));
+  renderBodyMemberTabs();
+  const member = getBodyMember(currentBodyMemberId);
+  const height = member.height;
+  // 按成员过滤并按日期排序
+  const memberRecords = bodyRecords.filter(r => (r.memberId || 'me') === member.id);
+  const sorted = [...memberRecords].sort((a, b) => a.date.localeCompare(b.date));
   const latest = sorted.length > 0 ? sorted[sorted.length - 1] : null;
 
   // 设置日期默认值
@@ -7765,8 +7812,9 @@ function renderBody() {
   }
 
   // 概览
+  document.getElementById('body-height').innerHTML = `${height}<span class="unit">cm</span>`;
   const weight = latest ? latest.weight : null;
-  const bmi = calcBMI(weight);
+  const bmi = calcBMI(weight, height);
   const status = getBMIStatus(bmi);
   document.getElementById('body-weight').innerHTML = weight ? `${weight}<span class="unit">kg</span>` : '--<span class="unit">kg</span>';
   document.getElementById('body-bmi').textContent = bmi ? bmi.toFixed(1) : '--';
@@ -7775,10 +7823,10 @@ function renderBody() {
   statusEl.style.color = status.color;
 
   // 趋势图
-  renderBodyChart();
+  renderBodyChart(member);
 
   // 历史记录
-  renderBodyHistory();
+  renderBodyHistory(member);
 }
 
 function addBodyRecord() {
@@ -7796,7 +7844,7 @@ function addBodyRecord() {
 function saveBodyRecord() {
   const date = document.getElementById('br-date').value;
   if (!date) { alert('请选择日期'); return; }
-  const record = { id: Date.now(), date };
+  const record = { id: Date.now(), date, memberId: currentBodyMemberId };
   let hasValue = false;
   bodyFields.forEach(f => {
     const v = parseFloat(document.getElementById('br-' + f.key).value);
@@ -7821,7 +7869,7 @@ function setBodyChart(type) {
   document.querySelectorAll('.body-chart-btn').forEach(b => {
     b.classList.toggle('active', b.textContent.includes(getChartLabel(type)) || b.textContent.trim() === getChartLabel(type));
   });
-  renderBodyChart();
+  renderBodyChart(getBodyMember(currentBodyMemberId));
 }
 
 function getChartLabel(type) {
@@ -7829,16 +7877,18 @@ function getChartLabel(type) {
   return map[type] || type;
 }
 
-function getChartValue(r, type) {
-  if (type === 'bmi') return calcBMI(r.weight);
+function getChartValue(r, type, height) {
+  if (type === 'bmi') return calcBMI(r.weight, height);
   return r[type];
 }
 
-function renderBodyChart() {
+function renderBodyChart(member) {
   const box = document.getElementById('body-chart');
   if (!box) return;
-  const sorted = [...bodyRecords].sort((a, b) => a.date.localeCompare(b.date));
-  const data = sorted.map(r => ({ date: r.date, value: getChartValue(r, bodyChartType) })).filter(d => d.value !== undefined && d.value !== null);
+  if (!member) member = getBodyMember(currentBodyMemberId);
+  const memberRecords = bodyRecords.filter(r => (r.memberId || 'me') === member.id);
+  const sorted = [...memberRecords].sort((a, b) => a.date.localeCompare(b.date));
+  const data = sorted.map(r => ({ date: r.date, value: getChartValue(r, bodyChartType, member.height) })).filter(d => d.value !== undefined && d.value !== null);
 
   if (data.length === 0) {
     box.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">📈</div><p>暂无数据，记录身体数据后查看趋势</p></div>';
@@ -7922,17 +7972,18 @@ function renderBodyChart() {
   </div>`;
 }
 
-function renderBodyHistory() {
+function renderBodyHistory(member) {
   const box = document.getElementById('body-history');
   if (!box) return;
-  if (bodyRecords.length === 0) {
+  if (!member) member = getBodyMember(currentBodyMemberId);
+  const memberRecords = bodyRecords.filter(r => (r.memberId || 'me') === member.id);
+  if (memberRecords.length === 0) {
     box.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">📋</div><p>暂无记录</p></div>';
     return;
   }
-  const sorted = [...bodyRecords].sort((a, b) => b.date.localeCompare(a.date));
+  const sorted = [...memberRecords].sort((a, b) => b.date.localeCompare(a.date));
   let html = '<div class="body-history-item body-history-head"><span>日期</span><span>体重</span><span>胸围</span><span>腰围</span><span>臀围</span><span>大腿</span><span>小腿</span><span>臂围</span><span></span></div>';
   html += sorted.map(r => {
-    const bmi = calcBMI(r.weight);
     return `<div class="body-history-item">
       <span style="font-weight:500;">${r.date}</span>
       <span>${r.weight ? r.weight : '-'}</span>
@@ -7946,6 +7997,120 @@ function renderBodyHistory() {
     </div>`;
   }).join('');
   box.innerHTML = html;
+}
+
+// ========== 身体数据 · 成员管理 ==========
+function openBodyMemberManager() {
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      ${bodyMembers.map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f5f7fa;border-radius:8px;">
+          <div>
+            <div style="font-size:14px;font-weight:500;">${m.icon} ${escapeHtml(m.name)}</div>
+            <div style="font-size:11px;color:#909399;margin-top:2px;">身高 ${m.height}cm</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="editBodyMember('${m.id}')">✏️ 编辑</button>
+            ${m.id !== 'me' ? `<button class="btn btn-ghost btn-sm" style="color:#f56c6c;" onclick="deleteBodyMember('${m.id}')">🗑️ 删除</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+      <button class="btn btn-primary" onclick="addBodyMember()" style="margin-top:4px;">➕ 添加成员</button>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '⚙️ 成员管理';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = closeQuick;
+  document.getElementById('qm-confirm').textContent = '关闭';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function addBodyMember() {
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">姓名</label>
+        <input type="text" id="bm-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：老公">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">图标（emoji）</label>
+        <input type="text" id="bm-icon" class="input" style="width:100%;margin-top:4px;" value="👨" maxlength="2">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">身高（cm）</label>
+        <input type="number" id="bm-height" class="input" style="width:100%;margin-top:4px;" step="0.1" placeholder="如：175" value="170">
+      </div>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '➕ 添加成员';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = () => {
+    const name = document.getElementById('bm-name').value.trim();
+    const icon = document.getElementById('bm-icon').value.trim() || '👤';
+    const height = parseFloat(document.getElementById('bm-height').value);
+    if (!name) { alert('请输入姓名'); return; }
+    if (isNaN(height) || height <= 0) { alert('请输入有效身高'); return; }
+    bodyMembers.push({ id: `bm_${Date.now()}`, name, icon, height });
+    saveBodyMembers();
+    closeQuick();
+    openBodyMemberManager();
+    renderBody();
+  };
+  document.getElementById('qm-confirm').textContent = '添加';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function editBodyMember(id) {
+  const m = bodyMembers.find(x => x.id === id);
+  if (!m) return;
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">姓名</label>
+        <input type="text" id="bm-name" class="input" style="width:100%;margin-top:4px;" value="${m.name.replace(/"/g,'&quot;')}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">图标（emoji）</label>
+        <input type="text" id="bm-icon" class="input" style="width:100%;margin-top:4px;" value="${m.icon}" maxlength="2">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">身高（cm）</label>
+        <input type="number" id="bm-height" class="input" style="width:100%;margin-top:4px;" step="0.1" value="${m.height}">
+      </div>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '✏️ 编辑成员';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = () => {
+    const name = document.getElementById('bm-name').value.trim();
+    const icon = document.getElementById('bm-icon').value.trim() || m.icon;
+    const height = parseFloat(document.getElementById('bm-height').value);
+    if (!name) { alert('请输入姓名'); return; }
+    if (isNaN(height) || height <= 0) { alert('请输入有效身高'); return; }
+    m.name = name;
+    m.icon = icon;
+    m.height = height;
+    saveBodyMembers();
+    closeQuick();
+    openBodyMemberManager();
+    renderBody();
+  };
+  document.getElementById('qm-confirm').textContent = '保存';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function deleteBodyMember(id) {
+  const m = bodyMembers.find(x => x.id === id);
+  if (!m) return;
+  if (m.id === 'me') { alert('默认成员不可删除'); return; }
+  if (!confirm(`确定删除成员「${m.name}」吗？该成员的所有身体数据记录也会被删除。`)) return;
+  bodyRecords = bodyRecords.filter(r => r.memberId !== id);
+  bodyMembers = bodyMembers.filter(x => x.id !== id);
+  saveBody();
+  saveBodyMembers();
+  if (currentBodyMemberId === id) currentBodyMemberId = 'me';
+  closeQuick();
+  renderBody();
 }
 
 // ====== 足迹模块 ======
