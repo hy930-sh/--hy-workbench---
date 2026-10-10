@@ -1370,7 +1370,7 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
             <button class="btn btn-sm hl-tab btn-primary" data-tab="saving" onclick="switchHlTab('saving')">💝 心愿</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="account" onclick="switchHlTab('account')">📒 记账</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="body" onclick="switchHlTab('body')">📏 身体数据</button>
-            <button class="btn btn-ghost btn-sm hl-tab" data-tab="assets" onclick="switchHlTab('assets')">📦 我的资产</button>
+            <button class="btn btn-ghost btn-sm hl-tab" data-tab="assets" onclick="switchHlTab('assets')">📦 资产</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="checklist" onclick="switchHlTab('checklist')">✅ 清单</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="password" onclick="switchHlTab('password')">🔐 密码管理</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="expiry" onclick="switchHlTab('expiry')">⏳ 效期提醒</button>
@@ -1822,8 +1822,17 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
         </div>
       </div>
 
-      <!-- 我的资产 模块 -->
+      <!-- 资产 模块 -->
       <div id="hl-assets-panel" class="hl-panel" style="display:none;">
+        <!-- 成员切换 -->
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-body" style="padding:12px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div id="asset-member-tabs" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+              <button class="btn btn-ghost btn-sm" onclick="openAssetMemberManager()">⚙️ 成员管理</button>
+            </div>
+          </div>
+        </div>
         <!-- 资产统计 -->
         <div class="stat-cards" style="margin-bottom:16px;">
           <div class="stat-card"><div class="label">资产总数</div><div class="value" id="asset-count">0<span class="unit">件</span></div></div>
@@ -1851,7 +1860,7 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
         <!-- 资产列表 -->
         <div class="panel">
           <div class="panel-header">
-            <h3>📦 我的资产清单</h3>
+            <h3>📦 资产清单</h3>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-ghost btn-sm" onclick="openAssetCatModal()">🏷️ 分类管理</button>
               <button class="btn btn-primary btn-sm" onclick="openAssetModal()">+ 新增资产</button>
@@ -4711,6 +4720,21 @@ function saveAssetCats() { localStorage.setItem('hy_asset_categories', JSON.stri
 let assets = JSON.parse(localStorage.getItem('hy_assets') || '[]');
 function saveAssets() { localStorage.setItem('hy_assets', JSON.stringify(assets)); }
 
+// 资产成员列表
+let assetMembers = JSON.parse(localStorage.getItem('hy_asset_members') || 'null');
+if (!assetMembers) {
+  assetMembers = [
+    { id: 'me', name: '我', icon: '👤' }
+  ];
+  // 迁移：给已有资产补上 memberId
+  assets.forEach(a => { if (!a.memberId) a.memberId = 'me'; });
+  saveAssets();
+  localStorage.setItem('hy_asset_members', JSON.stringify(assetMembers));
+}
+let currentAssetMemberId = assetMembers[0] ? assetMembers[0].id : 'me';
+function saveAssetMembers() { localStorage.setItem('hy_asset_members', JSON.stringify(assetMembers)); }
+function getAssetMember(id) { return assetMembers.find(m => m.id === id) || assetMembers[0]; }
+
 let currentAssetCat = 'all';
 let currentAssetStatus = 'all';
 let editingAssetId = null;
@@ -4776,7 +4800,28 @@ function calcAssetCostPerDay(a) {
   return { days, costPerDay: price / days, total: price };
 }
 
+// 渲染资产成员切换栏
+function renderAssetMemberTabs() {
+  const box = document.getElementById('asset-member-tabs');
+  if (!box) return;
+  box.innerHTML = assetMembers.map(m => `
+    <span class="ledger-tab ${m.id === currentAssetMemberId ? 'active' : ''}" onclick="switchAssetMember('${m.id}')">
+      <span>${m.icon} ${escapeHtml(m.name)}</span>
+      ${m.id !== 'me' ? `<span class="del" onclick="event.stopPropagation();deleteAssetMember('${m.id}')">✕</span>` : ''}
+    </span>
+  `).join('');
+}
+
+function switchAssetMember(id) {
+  currentAssetMemberId = id;
+  currentAssetCat = 'all';
+  currentAssetStatus = 'all';
+  renderAssetMemberTabs();
+  renderAssets();
+}
+
 function renderAssets() {
+  renderAssetMemberTabs();
   renderAssetStats();
   renderAssetFilters();
   renderAssetList();
@@ -4787,11 +4832,12 @@ function renderAssetStats() {
   const elTotal = document.getElementById('asset-total-cost');
   const elActive = document.getElementById('asset-active-count');
   const elSold = document.getElementById('asset-sold-count');
-  const total = assets.reduce((s, a) => s + (parseFloat(a.price) || 0), 0);
-  if (elCount) elCount.innerHTML = `${assets.length}<span class="unit">件</span>`;
+  const memberAssets = assets.filter(a => (a.memberId || 'me') === currentAssetMemberId);
+  const total = memberAssets.reduce((s, a) => s + (parseFloat(a.price) || 0), 0);
+  if (elCount) elCount.innerHTML = `${memberAssets.length}<span class="unit">件</span>`;
   if (elTotal) elTotal.innerHTML = `${total.toFixed(2)}<span class="unit">元</span>`;
-  if (elActive) elActive.innerHTML = `${assets.filter(a => a.status === 'active').length}<span class="unit">件</span>`;
-  if (elSold) elSold.innerHTML = `${assets.filter(a => a.status === 'sold').length}<span class="unit">件</span>`;
+  if (elActive) elActive.innerHTML = `${memberAssets.filter(a => a.status === 'active').length}<span class="unit">件</span>`;
+  if (elSold) elSold.innerHTML = `${memberAssets.filter(a => a.status === 'sold').length}<span class="unit">件</span>`;
 }
 
 function renderAssetFilters() {
@@ -4823,6 +4869,7 @@ function setAssetStatusFilter(s) { currentAssetStatus = s; renderAssetFilters();
 
 function filterAssets() {
   return assets.filter(a => {
+    if ((a.memberId || 'me') !== currentAssetMemberId) return false;
     if (currentAssetCat !== 'all' && a.catId !== currentAssetCat) return false;
     if (currentAssetStatus !== 'all' && a.status !== currentAssetStatus) return false;
     return true;
@@ -4955,6 +5002,7 @@ function confirmAsset() {
   } else {
     assets.push({
       id: Date.now(),
+      memberId: currentAssetMemberId,
       name, catId, price, purchaseDate, status,
       sellPrice, sellDate, retireDate, note,
       emoji: pickAssetEmoji(name),
@@ -5040,6 +5088,104 @@ function delAssetCat(id) {
         <button class="btn btn-ghost btn-sm" onclick="delAssetCat('${c.id}')">✕</button>
       </div>`).join('');
   }
+  renderAssets();
+}
+
+// ========== 资产 · 成员管理 ==========
+function openAssetMemberManager() {
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      ${assetMembers.map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#f5f7fa;border-radius:8px;">
+          <div style="font-size:14px;font-weight:500;">${m.icon} ${escapeHtml(m.name)}</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="editAssetMember('${m.id}')">✏️ 编辑</button>
+            ${m.id !== 'me' ? `<button class="btn btn-ghost btn-sm" style="color:#f56c6c;" onclick="deleteAssetMember('${m.id}')">🗑️ 删除</button>` : ''}
+          </div>
+        </div>
+      `).join('')}
+      <button class="btn btn-primary" onclick="addAssetMember()" style="margin-top:4px;">➕ 添加成员</button>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '⚙️ 成员管理';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = closeQuick;
+  document.getElementById('qm-confirm').textContent = '关闭';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function addAssetMember() {
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">姓名</label>
+        <input type="text" id="am-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：老公">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">图标（emoji）</label>
+        <input type="text" id="am-icon" class="input" style="width:100%;margin-top:4px;" value="👨" maxlength="2">
+      </div>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '➕ 添加成员';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = () => {
+    const name = document.getElementById('am-name').value.trim();
+    const icon = document.getElementById('am-icon').value.trim() || '👤';
+    if (!name) { alert('请输入姓名'); return; }
+    assetMembers.push({ id: `am_${Date.now()}`, name, icon });
+    saveAssetMembers();
+    closeQuick();
+    openAssetMemberManager();
+    renderAssets();
+  };
+  document.getElementById('qm-confirm').textContent = '添加';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function editAssetMember(id) {
+  const m = assetMembers.find(x => x.id === id);
+  if (!m) return;
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">姓名</label>
+        <input type="text" id="am-name" class="input" style="width:100%;margin-top:4px;" value="${m.name.replace(/"/g,'&quot;')}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">图标（emoji）</label>
+        <input type="text" id="am-icon" class="input" style="width:100%;margin-top:4px;" value="${m.icon}" maxlength="2">
+      </div>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = '✏️ 编辑成员';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = () => {
+    const name = document.getElementById('am-name').value.trim();
+    const icon = document.getElementById('am-icon').value.trim() || m.icon;
+    if (!name) { alert('请输入姓名'); return; }
+    m.name = name;
+    m.icon = icon;
+    saveAssetMembers();
+    closeQuick();
+    openAssetMemberManager();
+    renderAssets();
+  };
+  document.getElementById('qm-confirm').textContent = '保存';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function deleteAssetMember(id) {
+  const m = assetMembers.find(x => x.id === id);
+  if (!m) return;
+  if (m.id === 'me') { alert('默认成员不可删除'); return; }
+  if (!confirm(`确定删除成员「${m.name}」吗？该成员的所有资产记录也会被删除。`)) return;
+  assets = assets.filter(a => a.memberId !== id);
+  assetMembers = assetMembers.filter(x => x.id !== id);
+  saveAssets();
+  saveAssetMembers();
+  if (currentAssetMemberId === id) currentAssetMemberId = 'me';
+  closeQuick();
   renderAssets();
 }
 
