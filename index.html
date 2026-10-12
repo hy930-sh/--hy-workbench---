@@ -299,6 +299,22 @@
   .asset-card:hover .asset-actions { opacity: 1; }
   .asset-card .asset-action-btn { width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,0.92); border: 1px solid rgba(0,0,0,0.08); font-size: 12px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
   .asset-card .asset-action-btn:hover { background: #667eea; color: #fff; border-color: #667eea; }
+  /* 人情往来 */
+  .gift-item { display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.04); }
+  .gift-item:last-child { border-bottom:none; }
+  .gift-icon { width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0; }
+  .gift-icon.out { background:rgba(245,34,45,0.10); }
+  .gift-icon.in { background:rgba(82,196,26,0.12); }
+  .gift-body { flex:1;min-width:0; }
+  .gift-name { font-size:14px;font-weight:500;color:#303133; }
+  .gift-event { font-size:12px;color:#909399;margin-top:2px; }
+  .gift-amount { font-size:15px;font-weight:600;white-space:nowrap; }
+  .gift-amount.out { color:#f5222d; }
+  .gift-amount.in { color:#52c41a; }
+  .gift-date { font-size:11px;color:#c0c4cc;white-space:nowrap; }
+  .gift-del { cursor:pointer;color:#c0c4cc;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0; }
+  .gift-del:hover { color:#f56c6c;background:#fef0f0; }
+  .gift-link { display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#667eea;background:rgba(102,126,234,0.08);padding:2px 8px;border-radius:10px;margin-top:4px; }
   .asset-filter-chip { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 14px; font-size: 12px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); background: #fff; color: #606266; transition: all 0.15s; }
   .asset-filter-chip:hover { border-color: #667eea; color: #667eea; }
   .asset-filter-chip.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-color: transparent; }
@@ -1374,6 +1390,7 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="checklist" onclick="switchHlTab('checklist')">✅ 清单</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="password" onclick="switchHlTab('password')">🔐 密码管理</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="expiry" onclick="switchHlTab('expiry')">⏳ 效期提醒</button>
+            <button class="btn btn-ghost btn-sm hl-tab" data-tab="gift" onclick="switchHlTab('gift')">🤝 人情往来</button>
           </div>
         </div>
       </div>
@@ -1976,6 +1993,38 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
             <span id="exp-count-hint" style="font-size:12px;color:#909399;"></span>
           </div>
           <div class="panel-body" id="exp-list" style="padding:12px 20px;"></div>
+        </div>
+      </div>
+
+      <!-- 人情往来 模块 -->
+      <div id="hl-gift-panel" class="hl-panel" style="display:none;">
+        <!-- 统计 -->
+        <div class="stat-cards" style="margin-bottom:16px;">
+          <div class="stat-card"><div class="label">我随出的礼</div><div class="value" id="gift-out-total" style="color:#f5222d;">0<span class="unit">元</span></div></div>
+          <div class="stat-card"><div class="label">收到的回礼</div><div class="value" id="gift-in-total" style="color:#52c41a;">0<span class="unit">元</span></div></div>
+          <div class="stat-card"><div class="label">往来人次</div><div class="value" id="gift-count">0<span class="unit">次</span></div></div>
+          <div class="stat-card"><div class="label">净支出</div><div class="value" id="gift-net" style="color:#667eea;">0<span class="unit">元</span></div></div>
+        </div>
+        <!-- 筛选 + 操作 -->
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-body" style="padding:14px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <input type="text" id="gift-search" placeholder="🔍 搜索姓名或事件..." oninput="renderGifts()" style="padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:13px;min-width:200px;">
+                <select id="gift-type-filter" onchange="renderGifts()" style="padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:13px;background:#fff;">
+                  <option value="all">全部往来</option>
+                  <option value="out">我随出的礼</option>
+                  <option value="in">收到的回礼</option>
+                </select>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openGiftModal()">+ 记一笔</button>
+            </div>
+          </div>
+        </div>
+        <!-- 往来列表 -->
+        <div class="panel">
+          <div class="panel-header"><h3>🤝 人情往来记录</h3><span id="gift-hint" style="font-size:12px;color:#909399;"></span></div>
+          <div class="panel-body" id="gift-list" style="padding:12px 20px;"></div>
         </div>
       </div>
     </div>
@@ -4695,6 +4744,7 @@ function switchHlTab(tab) {
   document.getElementById('hl-checklist-panel').style.display = tab === 'checklist' ? '' : 'none';
   document.getElementById('hl-password-panel').style.display = tab === 'password' ? '' : 'none';
   document.getElementById('hl-expiry-panel').style.display = tab === 'expiry' ? '' : 'none';
+  document.getElementById('hl-gift-panel').style.display = tab === 'gift' ? '' : 'none';
   if (tab === 'todo') renderHlTodos();
   if (tab === 'habit') renderHabitCalendars();
   if (tab === 'saving') renderSavings();
@@ -4704,6 +4754,7 @@ function switchHlTab(tab) {
   if (tab === 'checklist') renderChecklists();
   if (tab === 'password') renderPasswords();
   if (tab === 'expiry') renderExpiry();
+  if (tab === 'gift') renderGifts();
 }
 
 // ========== 健康与生活 · 我的资产 ==========
@@ -8257,6 +8308,212 @@ function deleteBodyMember(id) {
   if (currentBodyMemberId === id) currentBodyMemberId = 'me';
   closeQuick();
   renderBody();
+}
+
+// ========== 健康与生活 · 人情往来 ==========
+let gifts = JSON.parse(localStorage.getItem('hy_gifts') || '[]');
+function saveGifts() { localStorage.setItem('hy_gifts', JSON.stringify(gifts)); }
+
+// 事件类型
+const GIFT_EVENTS = [
+  { key: 'wedding', name: '结婚', icon: '💍' },
+  { key: 'fullmoon', name: '满月', icon: '👶' },
+  { key: 'birthday', name: '生日', icon: '🎂' },
+  { key: 'newyear', name: '新年', icon: '🧧' },
+  { key: 'housewarming', name: '乔迁', icon: '🏠' },
+  { key: 'funeral', name: '白事', icon: '🕯' },
+  { key: 'graduation', name: '升学', icon: '🎓' },
+  { key: 'other', name: '其他', icon: '🎁' }
+];
+function getGiftEvent(key) { return GIFT_EVENTS.find(e => e.key === key) || GIFT_EVENTS.find(e => e.key === 'other'); }
+
+// 今日日期字符串
+function giftTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// 渲染统计
+function renderGiftStats(list) {
+  let outTotal = 0, inTotal = 0;
+  list.forEach(g => {
+    const val = g.amount || 0;
+    if (g.direction === 'out') outTotal += val;
+    else inTotal += val;
+  });
+  const net = outTotal - inTotal;
+  document.getElementById('gift-out-total').innerHTML = `${outTotal.toFixed(0)}<span class="unit">元</span>`;
+  document.getElementById('gift-in-total').innerHTML = `${inTotal.toFixed(0)}<span class="unit">元</span>`;
+  document.getElementById('gift-count').innerHTML = `${list.length}<span class="unit">次</span>`;
+  const netEl = document.getElementById('gift-net');
+  const sign = net > 0 ? '-' : net < 0 ? '+' : '';
+  netEl.innerHTML = `${sign}${Math.abs(net).toFixed(0)}<span class="unit">元</span>`;
+  netEl.style.color = net > 0 ? '#f5222d' : net < 0 ? '#52c41a' : '#667eea';
+}
+
+// 筛选 + 渲染列表
+function renderGifts() {
+  const search = (document.getElementById('gift-search')?.value || '').toLowerCase().trim();
+  const typeFilter = document.getElementById('gift-type-filter')?.value || 'all';
+
+  let list = [...gifts];
+  if (typeFilter === 'out') list = list.filter(g => g.direction === 'out');
+  else if (typeFilter === 'in') list = list.filter(g => g.direction === 'in');
+  if (search) {
+    list = list.filter(g => {
+      const name = (g.name || '').toLowerCase();
+      const event = (getGiftEvent(g.event)?.name || '').toLowerCase();
+      const note = (g.note || '').toLowerCase();
+      return name.includes(search) || event.includes(search) || note.includes(search);
+    });
+  }
+
+  // 统计用全部数据（不受筛选影响）
+  renderGiftStats(gifts);
+
+  // 按日期倒序
+  list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+
+  const box = document.getElementById('gift-list');
+  if (!box) return;
+  const hint = document.getElementById('gift-hint');
+  if (hint) hint.textContent = list.length > 0 ? `共 ${list.length} 笔记录` : '';
+
+  if (list.length === 0) {
+    box.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">🤝</div><p>还没有人情往来记录<br>点击「+ 记一笔」开始记录</p></div>';
+    return;
+  }
+
+  box.innerHTML = list.map(g => {
+    const isOut = g.direction === 'out';
+    const ev = getGiftEvent(g.event);
+    const hasMoney = g.amount && g.amount > 0;
+    const hasItem = g.itemName && g.itemName.trim();
+
+    let amountText = '';
+    if (hasMoney) amountText = `${isOut ? '-' : '+'}¥${g.amount.toFixed(0)}`;
+    else if (hasItem) amountText = `${isOut ? '送' : '收'}: ${escapeHtml(g.itemName)}`;
+    else amountText = isOut ? '送出' : '收到';
+
+    // 查找关联记录
+    let linkHtml = '';
+    if (g.linkedId) {
+      const linked = gifts.find(x => x.id === g.linkedId);
+      if (linked) {
+        const lEv = getGiftEvent(linked.event);
+        linkHtml = `<div class="gift-link">🔗 关联: ${linked.name} · ${lEv.icon} ${lEv.name} · ${linked.date}</div>`;
+      }
+    }
+
+    const dirText = isOut ? '我随出' : '对方回礼';
+    return `<div class="gift-item">
+      <div class="gift-icon ${isOut ? 'out' : 'in'}">${ev.icon}</div>
+      <div class="gift-body">
+        <div class="gift-name">${escapeHtml(g.name || '未填写')}</div>
+        <div class="gift-event">${dirText} · ${ev.name}${g.note ? ' · ' + escapeHtml(g.note) : ''}</div>
+        ${linkHtml}
+      </div>
+      <div class="gift-amount ${isOut ? 'out' : 'in'}">${amountText}</div>
+      <div class="gift-date">${(g.date || '').slice(5)}</div>
+      <span class="gift-del" onclick="deleteGift(${g.id})">✕</span>
+    </div>`;
+  }).join('');
+}
+
+// 新增/编辑弹窗
+let editingGiftId = null;
+function openGiftModal(id) {
+  editingGiftId = id || null;
+  const g = id ? gifts.find(x => x.id === id) : null;
+  const isOut = g ? g.direction === 'out' : true;
+  const today = giftTodayStr();
+
+  // 如果是从某条记录发起的回礼，预填信息
+  let prefillName = '', prefillEvent = '';
+  if (id && g) {
+    prefillName = g.name || '';
+    prefillEvent = g.event || '';
+  }
+
+  const eventOpts = GIFT_EVENTS.map(e => `<option value="${e.key}" ${g && g.event === e.key ? 'selected' : ''}>${e.icon} ${e.name}</option>`).join('');
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;gap:8px;">
+        <label style="flex:1;cursor:pointer;"><input type="radio" name="gift-dir" value="out" ${isOut ? 'checked' : ''}> 🎁 我随出的礼</label>
+        <label style="flex:1;cursor:pointer;"><input type="radio" name="gift-dir" value="in" ${!isOut ? 'checked' : ''}> 🤝 对方回礼</label>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">姓名 *</label>
+        <input type="text" id="gift-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：张三" value="${g ? escapeHtml(g.name || '') : escapeHtml(prefillName)}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">事件类型</label>
+        <select id="gift-event-type" class="input" style="width:100%;margin-top:4px;">${eventOpts}</select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">礼金（元）</label>
+        <input type="number" id="gift-amount" class="input" style="width:100%;margin-top:4px;" step="0.01" placeholder="如：420" value="${g ? (g.amount || '') : ''}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">礼品名称（非现金时填写）</label>
+        <input type="text" id="gift-item-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：银镯子" value="${g ? escapeHtml(g.itemName || '') : ''}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">日期</label>
+        <input type="date" id="gift-date" class="input" style="width:100%;margin-top:4px;" value="${g ? (g.date || today) : today}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">备注</label>
+        <input type="text" id="gift-note" class="input" style="width:100%;margin-top:4px;" placeholder="如：在XX酒店办酒" value="${g ? escapeHtml(g.note || '') : ''}">
+      </div>
+      <p style="font-size:11px;color:#909399;">礼金和礼品可只填一项，礼金优先统计</p>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = g ? '编辑人情往来' : '🤝 记一笔';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').onclick = confirmGift;
+  document.getElementById('qm-confirm').textContent = '保存';
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function confirmGift() {
+  const direction = document.querySelector('input[name="gift-dir"]:checked').value;
+  const name = document.getElementById('gift-name').value.trim();
+  const event = document.getElementById('gift-event-type').value;
+  const amountStr = document.getElementById('gift-amount').value;
+  const amount = amountStr ? parseFloat(amountStr) : 0;
+  const itemName = document.getElementById('gift-item-name').value.trim();
+  const date = document.getElementById('gift-date').value || giftTodayStr();
+  const note = document.getElementById('gift-note').value.trim();
+
+  if (!name) { alert('请输入姓名'); return; }
+  if (!amount && !itemName) { alert('请填写礼金或礼品名称'); return; }
+
+  if (editingGiftId) {
+    const g = gifts.find(x => x.id === editingGiftId);
+    if (g) {
+      Object.assign(g, { direction, name, event, amount, itemName, date, note });
+    }
+  } else {
+    gifts.push({
+      id: Date.now(),
+      direction, name, event, amount, itemName, date, note,
+      createdAt: Date.now()
+    });
+  }
+  saveGifts();
+  closeQuick();
+  renderGifts();
+}
+
+function deleteGift(id) {
+  if (!confirm('确定删除这条人情往来记录吗？')) return;
+  gifts = gifts.filter(g => g.id !== id);
+  // 清除关联引用
+  gifts.forEach(g => { if (g.linkedId === id) g.linkedId = null; });
+  saveGifts();
+  renderGifts();
 }
 
 // ====== 足迹模块 ======
