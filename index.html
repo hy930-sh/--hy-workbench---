@@ -611,6 +611,9 @@
 </head>
 <body>
 
+<!-- 全局同步状态通知 -->
+<div id="sync-notice" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;padding:8px 16px;text-align:center;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;" onclick="openSyncModal()"></div>
+
 <!-- 左侧导航 -->
 <div class="sidebar">
   <div class="logo"><span class="logo-icon">🚀</span>HY的工作台</div>
@@ -2984,6 +2987,19 @@ function showStatus(msg, type) {
   el.textContent = msg;
 }
 
+// 全局同步通知（自动同步失败时在页面顶部提示）
+function showSyncNotice(msg, type) {
+  const el = document.getElementById('sync-notice');
+  if (!el) return;
+  const bgMap = { error: '#fff1f0', warn: '#fffbe6', success: '#f6ffed', info: '#e6f7ff' };
+  const colorMap = { error: '#ff4d4f', warn: '#fa8c16', success: '#52c41a', info: '#1890ff' };
+  el.style.background = bgMap[type] || bgMap.info;
+  el.style.color = colorMap[type] || colorMap.info;
+  el.innerHTML = msg + ' <span style="text-decoration:underline;margin-left:8px;">点击修复</span>';
+  el.style.display = 'block';
+}
+function hideSyncNotice() { const el = document.getElementById('sync-notice'); if (el) el.style.display = 'none'; }
+
 // ========== 数据 导入 / 导出 ==========
 const HY_DATA_PREFIX = 'hy_'; // 所有业务数据键的前缀
 const HY_BACKUP_META_KEYS = ['hy_backup_exportAt', 'hy_backup_exportDevice', 'hy_backup_exportKeys'];
@@ -3127,6 +3143,7 @@ function getSyncStatusBadge() {
 }
 
 function openSyncModal() {
+  hideSyncNotice();
   const body = document.getElementById('sync-modal-body');
   const hasConfig = syncConfig.token && syncConfig.gistId;
   const escapeHtml = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
@@ -3334,20 +3351,31 @@ async function pushToGist(showSt = true) {
         files: { [filename]: { content: JSON.stringify(payload, null, 2) } }
       })
     });
-    if (resp.status === 401) { if (showSt) showStatus('❌ Token 无效或已过期', 'error'); return false; }
-    if (resp.status === 404) { if (showSt) showStatus('❌ Gist 不存在', 'error'); return false; }
+    if (resp.status === 401) {
+      if (showSt) showStatus('❌ Token 无效或已过期，请重新生成', 'error');
+      else showSyncNotice('☁️ 云同步失败：Token 已过期，请点击更新 Token', 'error');
+      return false;
+    }
+    if (resp.status === 404) {
+      if (showSt) showStatus('❌ Gist 不存在', 'error');
+      else showSyncNotice('☁️ 云同步失败：Gist 不存在', 'error');
+      return false;
+    }
     if (!resp.ok) {
       const errText = await resp.text();
       if (showSt) showStatus(`❌ 推送失败：HTTP ${resp.status}`, 'error');
+      else showSyncNotice(`☁️ 云同步失败：HTTP ${resp.status}`, 'error');
       console.warn('Push error:', errText);
       return false;
     }
     syncConfig.lastPushAt = new Date().toISOString();
     saveSyncConfig();
     if (showSt) showStatus(`✅ 已推送 ${keys.length} 项数据到云端`, 'success');
+    else hideSyncNotice();
     return true;
   } catch (err) {
     if (showSt) showStatus('❌ 网络错误：' + err.message, 'error');
+    else showSyncNotice('☁️ 云同步失败：网络错误，稍后重试', 'warn');
     return false;
   } finally {
     syncPushInFlight = false;
@@ -3369,9 +3397,21 @@ async function pullFromGist(showSt = true) {
         'X-GitHub-Api-Version': '2022-11-28'
       }
     });
-    if (resp.status === 401) { if (showSt) showStatus('❌ Token 无效或已过期', 'error'); return false; }
-    if (resp.status === 404) { if (showSt) showStatus('❌ Gist 不存在', 'error'); return false; }
-    if (!resp.ok) { if (showSt) showStatus(`❌ 拉取失败：HTTP ${resp.status}`, 'error'); return false; }
+    if (resp.status === 401) {
+      if (showSt) showStatus('❌ Token 无效或已过期，请重新生成', 'error');
+      else showSyncNotice('☁️ 云同步失败：Token 已过期，请点击更新 Token', 'error');
+      return false;
+    }
+    if (resp.status === 404) {
+      if (showSt) showStatus('❌ Gist 不存在', 'error');
+      else showSyncNotice('☁️ 云同步失败：Gist 不存在', 'error');
+      return false;
+    }
+    if (!resp.ok) {
+      if (showSt) showStatus(`❌ 拉取失败：HTTP ${resp.status}`, 'error');
+      else showSyncNotice(`☁️ 云同步失败：HTTP ${resp.status}`, 'error');
+      return false;
+    }
     const gist = await resp.json();
     const file = gist.files && gist.files[filename];
     if (!file) {
@@ -3410,12 +3450,14 @@ async function pullFromGist(showSt = true) {
       showStatus(`✅ 已拉取 ${written} 项数据，2 秒后刷新页面...`, 'success');
       setTimeout(() => location.reload(), 2000);
     } else {
+      hideSyncNotice();
       // 静默拉取成功，刷新一次（让本地数据更新）
       setTimeout(() => location.reload(), 500);
     }
     return true;
   } catch (err) {
     if (showSt) showStatus('❌ 网络错误：' + err.message, 'error');
+    else showSyncNotice('☁️ 云同步失败：网络错误，稍后重试', 'warn');
     return false;
   }
 }
