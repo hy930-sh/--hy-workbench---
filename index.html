@@ -7653,7 +7653,13 @@ function addAccountEntry() {
             <label style="font-size:12px;color:#606266;">资产名称 *</label>
             <input type="text" id="acc-asset-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：iPhone 15">
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <label style="font-size:12px;color:#606266;">归属 *</label>
+              <select id="acc-asset-owner" class="input" style="width:100%;margin-top:4px;">
+                ${assetMembers.map(m => `<option value="${m.id}" ${m.id === currentAssetMemberId ? 'selected' : ''}>${m.icon || '👤'} ${m.name}</option>`).join('')}
+              </select>
+            </div>
             <div>
               <label style="font-size:12px;color:#606266;">分类 *</label>
               <select id="acc-asset-cat" class="input" style="width:100%;margin-top:4px;">
@@ -7699,12 +7705,13 @@ function addAccountEntry() {
       if (toAsset && toAsset.checked) {
         const assetName = document.getElementById('acc-asset-name').value.trim();
         if (!assetName) { alert('请填写资产名称'); return; }
+        const assetOwner = document.getElementById('acc-asset-owner').value;
         const assetCat = document.getElementById('acc-asset-cat').value;
         const assetStatus = document.getElementById('acc-asset-status').value;
         const purchaseDate = new Date(date + 'T00:00:00').getTime();
         const newAsset = {
           id: Date.now() + 1,
-          memberId: currentAssetMemberId,
+          memberId: assetOwner,
           name: assetName,
           catId: assetCat,
           price: amount,
