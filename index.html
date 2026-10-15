@@ -4880,20 +4880,17 @@ function daysSince(ts) {
 }
 
 function calcAssetCostPerDay(a) {
-  // 成本 = 购入价 - 卖出价（如已卖出）+ 关联支出总额；使用天数 = 自购入到当前（或卖出日）
+  // 成本 = 购入价 - 卖出价（如已卖出）；使用天数 = 自购入到当前（或卖出日）
   let price = parseFloat(a.price) || 0;
   if (a.status === 'sold' && a.sellPrice) {
     price = price - parseFloat(a.sellPrice);
     if (price < 0) price = 0;
   }
-  // 加上关联的记账支出
-  const linkedTotal = getAssetLinkedTotal(a.id);
-  price += linkedTotal;
   let endTs = Date.now();
   if (a.status === 'sold' && a.sellDate) endTs = a.sellDate;
   else if (a.status === 'retired' && a.retireDate) endTs = a.retireDate;
   const days = Math.max(1, Math.floor((endTs - (a.purchaseDate || Date.now())) / 86400000));
-  return { days, costPerDay: price / days, total: price, linkedTotal };
+  return { days, costPerDay: price / days, total: price };
 }
 
 // 渲染资产成员切换栏
@@ -4990,13 +4987,13 @@ function renderAssetCard(a) {
   const catName = cat ? `${cat.icon || '📦'} ${cat.name}` : '📦 未分类';
   const sm = ASSET_STATUS_MAP[a.status] || ASSET_STATUS_MAP.active;
   const emoji = a.emoji || pickAssetEmoji(a.name);
-  const { days, costPerDay, linkedTotal } = calcAssetCostPerDay(a);
+  const { days, costPerDay } = calcAssetCostPerDay(a);
   const statusBadge = `<span class="asset-status-badge ${sm.cls}">${sm.icon} ${sm.name}</span>`;
   const sellInfo = a.status === 'sold' && a.sellPrice
     ? `<span style="color:#fa8c16;">卖出 ¥${parseFloat(a.sellPrice).toFixed(2)}</span>`
     : '';
-  const linkedInfo = linkedTotal > 0
-    ? `<div class="asset-meta" style="color:#667eea;"><span>关联支出 +¥${linkedTotal.toFixed(2)}</span></div>`
+  const fromAccBadge = a.fromAccount
+    ? `<span style="font-size:10px;background:#eef0ff;color:#667eea;padding:1px 6px;border-radius:8px;">来自记账</span>`
     : '';
   return `<div class="asset-card">
     <div class="asset-cover">
@@ -5004,14 +5001,13 @@ function renderAssetCard(a) {
       ${statusBadge}
     </div>
     <div class="asset-body">
-      <div class="asset-cat-tag">${catName}</div>
+      <div class="asset-cat-tag">${catName} ${fromAccBadge}</div>
       <div class="asset-name" title="${escapeHtml(a.name || '')}">${escapeHtml(a.name || '未命名')}</div>
       <div class="asset-meta">
         <span>¥${(parseFloat(a.price) || 0).toFixed(2)}</span>
         <span>已使用 ${days} 天</span>
       </div>
       ${sellInfo ? `<div class="asset-meta">${sellInfo}<span>购于 ${fmtAssetDate(a.purchaseDate)}</span></div>` : ''}
-      ${linkedInfo}
       <div class="asset-cost-row">
         <span class="asset-cost-label">日均成本</span>
         <span class="asset-cost-value">¥${costPerDay.toFixed(2)}</span>
@@ -5117,7 +5113,7 @@ function confirmAsset() {
 function delAsset(id) {
   if (!confirm('确定删除此条资产记录？')) return;
   assets = assets.filter(a => a.id !== id);
-  // 解除账本中对该资产的关联
+  // 解除账本中对该资产的引用（若有）
   accounts.forEach(r => { if (r.assetId != null && String(r.assetId) === String(id)) delete r.assetId; });
   saveAssets();
   saveAccounts();
@@ -7591,9 +7587,8 @@ function renderAccounts() {
     }
     if (r.type === 'expense' && r.assetId != null) {
       const linkedAsset = assets.find(a => String(a.id) === String(r.assetId));
-      if (linkedAsset) {
-        extra += `<div class="acc-note" style="color:#667eea;">📦 计入资产：${escapeHtml(linkedAsset.name)}</div>`;
-      }
+      const assetLabel = linkedAsset ? escapeHtml(linkedAsset.name) : '资产';
+      extra += `<div class="acc-note" style="color:#667eea;">📦 已计入资产：${assetLabel}</div>`;
     }
     return `<div class="acc-item">
       <div class="acc-icon" style="background:${isIncome ? 'rgba(82,196,26,0.12)' : 'rgba(245,34,45,0.10)'}">${cat.icon}</div>
@@ -7649,11 +7644,33 @@ function addAccountEntry() {
         </div>
       ` : ''}
       <div id="acc-asset-wrap">
-        <label style="font-size:12px;color:#606266;">关联资产（可选）</label>
-        <select id="acc-asset" class="input" style="width:100%;margin-top:4px;">
-          <option value="">— 不关联 —</option>
-          ${getAssetSelectOptions()}
-        </select>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#606266;">
+          <input type="checkbox" id="acc-to-asset" onchange="toggleAssetFields()">
+          📦 同时计入资产（金额、日期自动带入）
+        </label>
+        <div id="acc-asset-fields" style="display:none;flex-direction:column;gap:10px;margin-top:8px;padding:10px;background:#f7f8fc;border-radius:8px;">
+          <div>
+            <label style="font-size:12px;color:#606266;">资产名称 *</label>
+            <input type="text" id="acc-asset-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：iPhone 15">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <label style="font-size:12px;color:#606266;">分类 *</label>
+              <select id="acc-asset-cat" class="input" style="width:100%;margin-top:4px;">
+                ${assetCategories.map(c => `<option value="${c.id}">${c.icon || '📦'} ${c.name}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:12px;color:#606266;">状态</label>
+              <select id="acc-asset-status" class="input" style="width:100%;margin-top:4px;">
+                <option value="active">✅ 服役中</option>
+                <option value="retired">📦 已退役</option>
+                <option value="sold">💰 已卖出</option>
+              </select>
+            </div>
+          </div>
+          <p style="font-size:11px;color:#909399;margin:0;">购入价 = 本次支出金额，购入日期 = 本笔账单日期</p>
+        </div>
       </div>
       <div>
         <label style="font-size:12px;color:#606266;">备注（可选）</label>
@@ -7675,9 +7692,35 @@ function addAccountEntry() {
     const date = document.getElementById('acc-date').value || dateStr;
     if (isNaN(amount) || amount <= 0) { alert('请输入有效金额'); return; }
     if (!date) { alert('请选择日期'); return; }
-    const assetId = document.getElementById('acc-asset') ? document.getElementById('acc-asset').value : '';
     const record = { id: Date.now(), type, category: catKey, amount, note, date, ledgerId: ledger.id };
-    if (type === 'expense' && assetId) record.assetId = parseInt(assetId, 10);
+    // 同时计入资产：自动创建资产记录
+    if (type === 'expense') {
+      const toAsset = document.getElementById('acc-to-asset');
+      if (toAsset && toAsset.checked) {
+        const assetName = document.getElementById('acc-asset-name').value.trim();
+        if (!assetName) { alert('请填写资产名称'); return; }
+        const assetCat = document.getElementById('acc-asset-cat').value;
+        const assetStatus = document.getElementById('acc-asset-status').value;
+        const purchaseDate = new Date(date + 'T00:00:00').getTime();
+        const newAsset = {
+          id: Date.now() + 1,
+          memberId: currentAssetMemberId,
+          name: assetName,
+          catId: assetCat,
+          price: amount,
+          purchaseDate,
+          status: assetStatus,
+          sellPrice: null, sellDate: null, retireDate: null,
+          note: note || '',
+          emoji: pickAssetEmoji(assetName),
+          createdAt: Date.now(),
+          fromAccount: true
+        };
+        assets.push(newAsset);
+        saveAssets();
+        record.assetId = newAsset.id;
+      }
+    }
     if (isShared && type === 'expense') {
       record.payer = document.getElementById('acc-payer').value;
       const sharedCbs = document.querySelectorAll('.acc-shared-cb:checked');
@@ -7688,6 +7731,7 @@ function addAccountEntry() {
     saveAccounts();
     closeQuick();
     renderAccounts();
+    renderAssets();
   };
   document.getElementById('quick-modal').classList.add('show');
 }
@@ -7696,33 +7740,41 @@ function toggleAccCat() {
   const type = document.querySelector('input[name="acc-type"]:checked').value;
   const cats = accCategories[type];
   document.getElementById('acc-cat').innerHTML = cats.map(c => `<option value="${c.key}">${c.icon} ${c.name}</option>`).join('');
-  // 仅支出时显示关联资产
+  // 仅支出时显示「同时计入资产」
   const wrap = document.getElementById('acc-asset-wrap');
   if (wrap) wrap.style.display = type === 'expense' ? '' : 'none';
 }
 
-// 获取资产下拉选项（所有成员的资产，带成员名）
-function getAssetSelectOptions() {
-  return assets.map(a => {
-    const m = getAssetMember(a.memberId);
-    const mName = m ? m.name : '我';
-    return `<option value="${a.id}">${a.emoji || '📦'} ${escapeHtml(a.name)} · ${mName}</option>`;
-  }).join('');
-}
-
-// 获取某资产的关联支出总额
-function getAssetLinkedExpenses(assetId) {
-  return accounts.filter(r => r.assetId != null && String(r.assetId) === String(assetId) && r.type === 'expense');
-}
-function getAssetLinkedTotal(assetId) {
-  return getAssetLinkedExpenses(assetId).reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+// 切换「同时计入资产」展开字段
+function toggleAssetFields() {
+  const cb = document.getElementById('acc-to-asset');
+  const fields = document.getElementById('acc-asset-fields');
+  if (cb && fields) {
+    fields.style.display = cb.checked ? 'flex' : 'none';
+    // 默认资产名称取备注或分类名
+    if (cb.checked) {
+      const nameInput = document.getElementById('acc-asset-name');
+      if (nameInput && !nameInput.value) {
+        const noteVal = document.getElementById('acc-note').value.trim();
+        const catText = document.getElementById('acc-cat').selectedOptions[0].text;
+        nameInput.value = noteVal || catText.replace(/^[^\u4e00-\u9fa5a-zA-Z]+/, '').trim();
+      }
+    }
+  }
 }
 
 function deleteAccount(id) {
   if (!confirm('确定删除这笔账单吗？')) return;
+  const rec = accounts.find(r => r.id === id);
+  // 若该账单生成了资产，同步删除资产
+  if (rec && rec.assetId != null) {
+    assets = assets.filter(a => String(a.id) !== String(rec.assetId));
+    saveAssets();
+  }
   accounts = accounts.filter(r => r.id !== id);
   saveAccounts();
   renderAccounts();
+  renderAssets();
 }
 
 // ========== 账本管理 ==========
