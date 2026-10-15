@@ -4880,17 +4880,20 @@ function daysSince(ts) {
 }
 
 function calcAssetCostPerDay(a) {
-  // 成本 = 购入价 - 卖出价（如已卖出）；使用天数 = 自购入到当前（或卖出日）
+  // 成本 = 购入价 - 卖出价（如已卖出）+ 关联支出总额；使用天数 = 自购入到当前（或卖出日）
   let price = parseFloat(a.price) || 0;
   if (a.status === 'sold' && a.sellPrice) {
     price = price - parseFloat(a.sellPrice);
     if (price < 0) price = 0;
   }
+  // 加上关联的记账支出
+  const linkedTotal = getAssetLinkedTotal(a.id);
+  price += linkedTotal;
   let endTs = Date.now();
   if (a.status === 'sold' && a.sellDate) endTs = a.sellDate;
   else if (a.status === 'retired' && a.retireDate) endTs = a.retireDate;
   const days = Math.max(1, Math.floor((endTs - (a.purchaseDate || Date.now())) / 86400000));
-  return { days, costPerDay: price / days, total: price };
+  return { days, costPerDay: price / days, total: price, linkedTotal };
 }
 
 // 渲染资产成员切换栏
@@ -4987,10 +4990,13 @@ function renderAssetCard(a) {
   const catName = cat ? `${cat.icon || '📦'} ${cat.name}` : '📦 未分类';
   const sm = ASSET_STATUS_MAP[a.status] || ASSET_STATUS_MAP.active;
   const emoji = a.emoji || pickAssetEmoji(a.name);
-  const { days, costPerDay } = calcAssetCostPerDay(a);
+  const { days, costPerDay, linkedTotal } = calcAssetCostPerDay(a);
   const statusBadge = `<span class="asset-status-badge ${sm.cls}">${sm.icon} ${sm.name}</span>`;
   const sellInfo = a.status === 'sold' && a.sellPrice
     ? `<span style="color:#fa8c16;">卖出 ¥${parseFloat(a.sellPrice).toFixed(2)}</span>`
+    : '';
+  const linkedInfo = linkedTotal > 0
+    ? `<div class="asset-meta" style="color:#667eea;"><span>关联支出 +¥${linkedTotal.toFixed(2)}</span></div>`
     : '';
   return `<div class="asset-card">
     <div class="asset-cover">
@@ -5005,6 +5011,7 @@ function renderAssetCard(a) {
         <span>已使用 ${days} 天</span>
       </div>
       ${sellInfo ? `<div class="asset-meta">${sellInfo}<span>购于 ${fmtAssetDate(a.purchaseDate)}</span></div>` : ''}
+      ${linkedInfo}
       <div class="asset-cost-row">
         <span class="asset-cost-label">日均成本</span>
         <span class="asset-cost-value">¥${costPerDay.toFixed(2)}</span>
@@ -5110,8 +5117,12 @@ function confirmAsset() {
 function delAsset(id) {
   if (!confirm('确定删除此条资产记录？')) return;
   assets = assets.filter(a => a.id !== id);
+  // 解除账本中对该资产的关联
+  accounts.forEach(r => { if (r.assetId != null && String(r.assetId) === String(id)) delete r.assetId; });
   saveAssets();
+  saveAccounts();
   renderAssets();
+  renderAccounts();
 }
 
 // 分类管理弹窗
@@ -7578,6 +7589,12 @@ function renderAccounts() {
       const perPerson = r.amount / sharedBy.length;
       extra = `<div class="acc-note">👤 ${escapeHtml(payerName)} 付款 · ${sharedBy.length}人分摊 · 人均 ¥${perPerson.toFixed(2)}</div>`;
     }
+    if (r.type === 'expense' && r.assetId != null) {
+      const linkedAsset = assets.find(a => String(a.id) === String(r.assetId));
+      if (linkedAsset) {
+        extra += `<div class="acc-note" style="color:#667eea;">📦 计入资产：${escapeHtml(linkedAsset.name)}</div>`;
+      }
+    }
     return `<div class="acc-item">
       <div class="acc-icon" style="background:${isIncome ? 'rgba(82,196,26,0.12)' : 'rgba(245,34,45,0.10)'}">${cat.icon}</div>
       <div class="acc-info">
@@ -7631,6 +7648,13 @@ function addAccountEntry() {
           </div>
         </div>
       ` : ''}
+      <div id="acc-asset-wrap">
+        <label style="font-size:12px;color:#606266;">关联资产（可选）</label>
+        <select id="acc-asset" class="input" style="width:100%;margin-top:4px;">
+          <option value="">— 不关联 —</option>
+          ${getAssetSelectOptions()}
+        </select>
+      </div>
       <div>
         <label style="font-size:12px;color:#606266;">备注（可选）</label>
         <input type="text" id="acc-note" class="input" style="width:100%;margin-top:4px;" placeholder="如：超市购物">
@@ -7651,7 +7675,9 @@ function addAccountEntry() {
     const date = document.getElementById('acc-date').value || dateStr;
     if (isNaN(amount) || amount <= 0) { alert('请输入有效金额'); return; }
     if (!date) { alert('请选择日期'); return; }
+    const assetId = document.getElementById('acc-asset') ? document.getElementById('acc-asset').value : '';
     const record = { id: Date.now(), type, category: catKey, amount, note, date, ledgerId: ledger.id };
+    if (type === 'expense' && assetId) record.assetId = parseInt(assetId, 10);
     if (isShared && type === 'expense') {
       record.payer = document.getElementById('acc-payer').value;
       const sharedCbs = document.querySelectorAll('.acc-shared-cb:checked');
@@ -7670,6 +7696,26 @@ function toggleAccCat() {
   const type = document.querySelector('input[name="acc-type"]:checked').value;
   const cats = accCategories[type];
   document.getElementById('acc-cat').innerHTML = cats.map(c => `<option value="${c.key}">${c.icon} ${c.name}</option>`).join('');
+  // 仅支出时显示关联资产
+  const wrap = document.getElementById('acc-asset-wrap');
+  if (wrap) wrap.style.display = type === 'expense' ? '' : 'none';
+}
+
+// 获取资产下拉选项（所有成员的资产，带成员名）
+function getAssetSelectOptions() {
+  return assets.map(a => {
+    const m = getAssetMember(a.memberId);
+    const mName = m ? m.name : '我';
+    return `<option value="${a.id}">${a.emoji || '📦'} ${escapeHtml(a.name)} · ${mName}</option>`;
+  }).join('');
+}
+
+// 获取某资产的关联支出总额
+function getAssetLinkedExpenses(assetId) {
+  return accounts.filter(r => r.assetId != null && String(r.assetId) === String(assetId) && r.type === 'expense');
+}
+function getAssetLinkedTotal(assetId) {
+  return getAssetLinkedExpenses(assetId).reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
 }
 
 function deleteAccount(id) {
