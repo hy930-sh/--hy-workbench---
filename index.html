@@ -3468,11 +3468,33 @@ async function pullFromGist(showSt = true) {
     }
     const remotePushedAt = (payload && payload._meta && payload._meta.pushedAt) || (gist.updated_at);
     const localLastPull = syncConfig.lastPullAt || '1970-01-01';
+    // 统计本地和云端的业务数据量，防止用空/旧云端数据覆盖本地
+    const cloudKeys = Object.keys(dataMap).filter(k => k.startsWith('hy_') && !k.startsWith('hy_gist_'));
+    let localKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('hy_') && !k.startsWith('hy_gist_')) localKeys.push(k);
+    }
+    const localHasData = localKeys.some(k => {
+      const v = localStorage.getItem(k);
+      return v && v !== '[]' && v !== '{}' && v !== 'null' && v !== '""';
+    });
     // 静默模式：如果远端没更新过，跳过
     if (showSt === false && remotePushedAt && new Date(remotePushedAt) <= new Date(localLastPull)) {
       return false;
     }
-    if (showSt && !confirm(`即将从云端拉取 ${Object.keys(dataMap).length} 项数据，会覆盖本地同名数据。是否继续？`)) {
+    // 安全保护：本地有数据但云端数据更少（或为空）时，静默模式不覆盖；手动模式需二次确认
+    if (localHasData && cloudKeys.length < localKeys.length) {
+      if (showSt === false) {
+        console.warn(`Auto-pull 跳过：本地 ${localKeys.length} 项数据 > 云端 ${cloudKeys.length} 项，防止覆盖`);
+        return false;
+      }
+      if (!confirm(`⚠️ 本地有 ${localKeys.length} 项数据，云端只有 ${cloudKeys.length} 项。\n继续拉取将用云端覆盖本地，可能导致数据丢失！\n确定继续吗？`)) {
+        showStatus('已取消拉取（保护本地数据）', 'info');
+        return false;
+      }
+    }
+    if (showSt && !confirm(`即将从云端拉取 ${cloudKeys.length} 项数据，会覆盖本地同名数据。是否继续？`)) {
       showStatus('已取消拉取', 'info');
       return false;
     }
@@ -9417,8 +9439,36 @@ initWordUploadDragDrop();
 applyNavNames();
 initDragSort();
 switchPage('home');
+// 检测本地数据是否被意外清空（如清理缓存导致 localStorage 丢失）
+checkDataWipeOnLoad();
 // 启动后自动从云端拉取最新数据（如果已配置 Gist 同步）
 autoPullOnLoad();
+
+function checkDataWipeOnLoad() {
+  let dataKeys = 0;
+  let nonEmptyKeys = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('hy_') && !k.startsWith('hy_gist_')) {
+      dataKeys++;
+      const v = localStorage.getItem(k);
+      if (v && v !== '[]' && v !== '{}' && v !== 'null' && v !== '""') nonEmptyKeys++;
+    }
+  }
+  // 如果业务数据键少于 3 个（几乎是空的），提示用户可能数据丢失
+  if (dataKeys < 3) {
+    const hasSync = !!(syncConfig.token && syncConfig.gistId);
+    const msg = hasSync
+      ? '⚠️ 检测到本地数据较少，可能是清理缓存导致。\n\n如果之前开启了云同步，请到「同步」中重新拉取数据；\n如果有导出的备份文件，请到「导入」恢复。'
+      : '⚠️ 检测到本地数据较少，可能是清理缓存导致 localStorage 丢失。\n\n建议：\n1. 配置 Gist 云同步，数据自动备份到云端；\n2. 定期导出数据到本地文件作为备份。\n\n如果有之前的导出文件，可点击「导入」恢复。';
+    setTimeout(() => {
+      if (confirm(msg)) {
+        if (hasSync) openSyncModal();
+        else { switchPage('home'); showStatus('请点击右上角「📥 导入」恢复备份数据，或点击「☁️ 同步」配置云同步', 'warn'); }
+      }
+    }, 800);
+  }
+}
 </script>
 
 
