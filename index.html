@@ -1190,6 +1190,13 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
                 <span id="ep-focus-label">60 分钟</span>
                 <button class="btn btn-default btn-sm" onclick="epChangeFocus(10)">+</button>
               </div>
+              <div style="margin:8px 0;font-size:12px;color:#909399;">本次专注类别</div>
+              <div id="ep-focus-cats" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px;">
+                <button class="btn btn-primary btn-sm ep-focus-cat" data-cat="职测" onclick="epSelectFocusCat('职测')">📝 职测</button>
+                <button class="btn btn-ghost btn-sm ep-focus-cat" data-cat="公基" onclick="epSelectFocusCat('公基')">📚 公基</button>
+                <button class="btn btn-ghost btn-sm ep-focus-cat" data-cat="错题复盘" onclick="epSelectFocusCat('错题复盘')">🔍 错题复盘</button>
+                <button class="btn btn-ghost btn-sm ep-focus-cat" data-cat="背诵时政" onclick="epSelectFocusCat('背诵时政')">🗞️ 背诵时政</button>
+              </div>
               <div style="display:flex;gap:8px;justify-content:center;">
                 <button class="btn btn-primary" id="ep-focus-btn" onclick="epToggleFocus()">▶ 开始专注</button>
                 <button class="btn btn-default btn-sm" onclick="epResetFocus()">重置</button>
@@ -4485,6 +4492,7 @@ let epFocusDuration = 60;
 let epFocusSeconds = 60 * 60;
 let epFocusRunning = false;
 let epFocusTimer = null;
+let epFocusCat = '职测'; // 当前专注类别：职测 / 公基 / 错题复盘 / 背诵时政
 let epRestDuration = 10;
 let epRestSeconds = 10 * 60;
 let epRestRunning = false;
@@ -4517,6 +4525,38 @@ function epChangeFocus(delta) {
   renderEpFocus();
 }
 
+function epSelectFocusCat(cat) {
+  epFocusCat = cat;
+  document.querySelectorAll('.ep-focus-cat').forEach(b => {
+    b.classList.toggle('btn-primary', b.dataset.cat === cat);
+    b.classList.toggle('btn-ghost', b.dataset.cat !== cat);
+  });
+}
+
+function epSyncFocusToWeekly(cat, minutes) {
+  // 周打卡表列顺序：职测(0) 公基(1) 错题复盘(2) 时政/背诵(3)
+  const catIndex = { '职测': 0, '公基': 1, '错题复盘': 2, '背诵时政': 3 };
+  const si = catIndex[cat];
+  if (si === undefined) return;
+  const dow = new Date().getDay(); // 0=周日 ... 6=周六
+  // epWeekly 顺序：周一(0) 周二(1) 周三(2) 周四(3) 周五(4) 周六(5) 周日(6)
+  const wi = dow === 0 ? 6 : dow - 1;
+  const day = epWeekly[wi];
+  if (!day) return;
+  const subItem = day.sub[si];
+  // 该类别当天是否适用（不是 "—"）
+  if (subItem && subItem[0] === '—') {
+    alert(`⚠️ ${day.d}的「${cat}」非当日计划项，已记录专注时长但未勾选打卡。`);
+  } else {
+    epChecks[`wk_${wi}_${si}`] = true;
+  }
+  // 累加实际学习时长
+  const actualKey = `wk_${wi}_actual`;
+  const prev = parseInt(epChecks[actualKey] || '0', 10) || 0;
+  epChecks[actualKey] = String(prev + minutes);
+  saveEpChecks();
+}
+
 function epToggleFocus() {
   if (epFocusRunning) { clearInterval(epFocusTimer); epFocusRunning = false; }
   else {
@@ -4528,7 +4568,8 @@ function epToggleFocus() {
         epFocusStats.todayMinutes = (epFocusStats.todayMinutes || 0) + epFocusDuration;
         epFocusStats.todaySessions = (epFocusStats.todaySessions || 0) + 1;
         localStorage.setItem('hy_ep_focus', JSON.stringify(epFocusStats));
-        alert(`🎉 专注完成！本次 ${epFocusDuration} 分钟，今日已专注 ${epFocusStats.todaySessions} 次`);
+        epSyncFocusToWeekly(epFocusCat, epFocusDuration);
+        alert(`🎉 专注完成！\n类别：${epFocusCat}\n本次：${epFocusDuration} 分钟\n今日已专注 ${epFocusStats.todaySessions} 次 · ${epFocusStats.todayMinutes}m\n✅ 已自动同步到周打卡表`);
         epFocusSeconds = epFocusDuration * 60;
         renderEpFocus();
       }
