@@ -1528,6 +1528,7 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="expiry" onclick="switchHlTab('expiry')">⏳ 效期提醒</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="gift" onclick="switchHlTab('gift')">🤝 人情往来</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="memo" onclick="switchHlTab('memo')">📝 备忘录</button>
+            <button class="btn btn-ghost btn-sm hl-tab" data-tab="help" onclick="switchHlTab('help')">🤝 互助小事本</button>
           </div>
         </div>
       </div>
@@ -2192,6 +2193,22 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
         <div class="panel">
           <div class="panel-header"><h3>📝 备忘录</h3><span id="memo-count" style="font-size:12px;color:#909399;"></span></div>
           <div class="panel-body" id="memo-list" style="padding:16px 20px;"></div>
+        </div>
+      </div>
+
+      <!-- 互助小事本 模块 -->
+      <div id="hl-help-panel" class="hl-panel" style="display:none;">
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-header"><h3>🤝 互助小事本</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" onclick="manageHelpMembers()">⚙ 成员管理</button>
+              <button class="btn btn-primary btn-sm" onclick="openHelpTaskModal()">+ 记录小事</button>
+            </div>
+          </div>
+          <div class="panel-body" style="padding:14px 20px;">
+            <div id="help-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;"></div>
+            <div id="help-task-list"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -5133,6 +5150,7 @@ function switchHlTab(tab) {
   document.getElementById('hl-expiry-panel').style.display = tab === 'expiry' ? '' : 'none';
   document.getElementById('hl-gift-panel').style.display = tab === 'gift' ? '' : 'none';
   document.getElementById('hl-memo-panel').style.display = tab === 'memo' ? '' : 'none';
+  document.getElementById('hl-help-panel').style.display = tab === 'help' ? '' : 'none';
   if (tab === 'todo') renderHlTodos();
   if (tab === 'habit') renderHabitCalendars();
   if (tab === 'saving') renderSavings();
@@ -5144,6 +5162,7 @@ function switchHlTab(tab) {
   if (tab === 'expiry') renderExpiry();
   if (tab === 'gift') renderGifts();
   if (tab === 'memo') renderMemos();
+  if (tab === 'help') renderHelpTasks();
 }
 
 // ========== 健康与生活 · 我的资产 ==========
@@ -10095,6 +10114,197 @@ function deleteMemo(id) {
   memos = memos.filter(m => m.id !== id);
   saveMemos();
   renderMemos();
+}
+
+// ========== 健康与生活 · 互助小事本 ==========
+let helpMembers = JSON.parse(localStorage.getItem('hy_help_members') || 'null');
+if (!Array.isArray(helpMembers) || helpMembers.length === 0) {
+  helpMembers = ['HY', '对方'];
+}
+function saveHelpMembers() { localStorage.setItem('hy_help_members', JSON.stringify(helpMembers)); }
+
+let helpTasks = JSON.parse(localStorage.getItem('hy_help_tasks') || '[]');
+function saveHelpTasks() { localStorage.setItem('hy_help_tasks', JSON.stringify(helpTasks)); }
+
+function helpTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// 统计：每个成员实际做了多少次
+function helpStats() {
+  const counts = {};
+  helpMembers.forEach(m => { counts[m] = 0; });
+  helpTasks.forEach(t => {
+    const doers = Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : []);
+    doers.forEach(d => { if (counts[d] !== undefined) counts[d]++; });
+  });
+  return counts;
+}
+
+function renderHelpTasks() {
+  const statsEl = document.getElementById('help-stats');
+  const listEl = document.getElementById('help-task-list');
+  if (!listEl) return;
+
+  // 统计卡片
+  const counts = helpStats();
+  const totalDo = helpTasks.reduce((s, t) => {
+    const d = Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : []);
+    return s + d.length;
+  }, 0);
+  let statsHtml = `<div class="stat-card" style="padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#f5f7fa;"><div class="label" style="font-size:12px;color:#909399;">累计记录</div><div class="value" style="font-size:20px;font-weight:bold;color:#667eea;">${helpTasks.length}<span class="unit" style="font-size:12px;color:#909399;font-weight:normal;">件</span></div></div>`;
+  statsHtml += `<div class="stat-card" style="padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#f5f7fa;"><div class="label" style="font-size:12px;color:#909399;">累计互助次数</div><div class="value" style="font-size:20px;font-weight:bold;color:#52c41a;">${totalDo}<span class="unit" style="font-size:12px;color:#909399;font-weight:normal;">人次</span></div></div>`;
+  Object.keys(counts).forEach(m => {
+    statsHtml += `<div class="stat-card" style="padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#f5f7fa;"><div class="label" style="font-size:12px;color:#909399;">${escapeHtml(m)} 干活</div><div class="value" style="font-size:20px;font-weight:bold;color:#303133;">${counts[m]}<span class="unit" style="font-size:12px;color:#909399;font-weight:normal;">次</span></div></div>`;
+  });
+  statsEl.innerHTML = statsHtml;
+
+  // 列表：按日期倒序
+  const list = [...helpTasks].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+  if (list.length === 0) {
+    listEl.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">🤝</div><p>还没有互助记录<br>点击右上角「+ 记录小事」开始记录</p></div>';
+    return;
+  }
+  listEl.innerHTML = list.map(t => {
+    const originals = Array.isArray(t.original) ? t.original : (t.original ? [t.original] : []);
+    const doers = Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : []);
+    const origText = originals.length ? originals.map(o => escapeHtml(o)).join('、') : '—';
+    const doerText = doers.length ? doers.map(d => escapeHtml(d)).join('、') : '—';
+    const helped = originals.length > 0 && doers.length > 0 &&
+      !(originals.length === doers.length && originals.every((o, i) => o === doers[i]));
+    return `<div class="gift-item" style="padding:12px 16px;">
+      <div class="gift-icon" style="background:${helped ? '#e6f7ff' : '#f6ffed'};color:${helped ? '#1890ff' : '#52c41a'};">${helped ? '🤝' : '✅'}</div>
+      <div class="gift-body" style="flex:1;">
+        <div class="gift-name" style="font-weight:600;font-size:14px;">${escapeHtml(t.task || '未命名')}</div>
+        <div class="gift-event" style="font-size:12px;color:#606266;margin-top:2px;">
+          本应：<span style="color:#909399;">${origText}</span> &nbsp;|&nbsp; 实际：<span style="color:#52c41a;font-weight:500;">${doerText}</span>
+        </div>
+      </div>
+      <div class="gift-date" style="font-size:12px;color:#909399;">${(t.date || '').slice(5)}</div>
+      <span class="gift-del" onclick="deleteHelpTask(${t.id})">✕</span>
+    </div>`;
+  }).join('');
+}
+
+// 成员管理
+function manageHelpMembers() {
+  document.getElementById('qm-title').textContent = '⚙ 成员管理';
+  const render = () => {
+    document.getElementById('qm-body').innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="new-help-member" placeholder="输入成员名称" style="flex:1;padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="addHelpMember()">添加</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${helpMembers.map(m => `<span style="display:inline-flex;align-items:center;gap:6px;background:#f5f7fa;padding:6px 12px;border-radius:16px;font-size:13px;">${escapeHtml(m)}<span onclick="delHelpMember('${m.replace(/'/g, "\\'")}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span></span>`).join('')}
+        </div>
+        ${helpMembers.length === 0 ? '<p style="color:#909399;font-size:13px;text-align:center;padding:10px 0;">还没有成员，请先添加</p>' : ''}
+        <p style="font-size:11px;color:#909399;margin-top:10px;">成员用于「本应谁干」和「实际谁干」的选择</p>
+      </div>
+    `;
+  };
+  render();
+  document.getElementById('qm-confirm').textContent = '完成';
+  document.getElementById('qm-confirm').onclick = () => {
+    document.getElementById('quick-modal').classList.remove('show');
+    document.getElementById('qm-confirm').textContent = '确定';
+    renderHelpTasks();
+  };
+  document.getElementById('quick-modal').classList.add('show');
+  window._renderHelpMemberMgr = render;
+}
+
+function addHelpMember() {
+  const input = document.getElementById('new-help-member');
+  const name = input.value.trim();
+  if (!name) return;
+  if (helpMembers.includes(name)) { alert('该成员已存在'); return; }
+  helpMembers.push(name);
+  saveHelpMembers();
+  window._renderHelpMemberMgr && window._renderHelpMemberMgr();
+}
+
+function delHelpMember(name) {
+  if (!confirm(`确定删除成员「${name}」吗？\n已使用该成员的记录仍会保留，但统计将不再计入。`)) return;
+  helpMembers = helpMembers.filter(m => m !== name);
+  saveHelpMembers();
+  window._renderHelpMemberMgr && window._renderHelpMemberMgr();
+}
+
+// 新增/编辑小事
+let editingHelpTaskId = null;
+function openHelpTaskModal(id) {
+  editingHelpTaskId = id || null;
+  const t = id ? helpTasks.find(x => x.id === id) : null;
+  const today = helpTodayStr();
+  const origList = t ? (Array.isArray(t.original) ? t.original : (t.original ? [t.original] : [])) : [];
+  const doerList = t ? (Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : [])) : [];
+
+  const memberCheckboxes = (field, selected) => helpMembers.map(m => `
+    <label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid #dcdfe6;border-radius:16px;cursor:pointer;font-size:13px;background:${selected.includes(m) ? '#e6f7ff' : '#fff'};border-color:${selected.includes(m) ? '#1890ff' : '#dcdfe6'};">
+      <input type="checkbox" name="${field}" value="${escapeHtml(m)}" ${selected.includes(m) ? 'checked' : ''} style="margin:0;"> ${escapeHtml(m)}
+    </label>
+  `).join('');
+
+  const body = `
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label style="font-size:12px;color:#606266;">日期</label>
+        <input type="date" id="help-date" class="input" style="width:100%;margin-top:4px;" value="${t ? (t.date || today) : today}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">事情 *</label>
+        <input type="text" id="help-task" class="input" style="width:100%;margin-top:4px;" placeholder="如：晒衣服 / 拿快递 / 倒垃圾" value="${t ? escapeHtml(t.task || '') : ''}">
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">本应谁干</label>
+        <div id="help-original-box" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+          ${helpMembers.length === 0 ? '<span style="color:#909399;font-size:13px;">请先到「成员管理」添加成员</span>' : memberCheckboxes('help-original', origList)}
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#606266;">实际谁干 *（可多选，一起干）</label>
+        <div id="help-doer-box" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
+          ${helpMembers.length === 0 ? '<span style="color:#909399;font-size:13px;">请先到「成员管理」添加成员</span>' : memberCheckboxes('help-doer', doerList)}
+        </div>
+      </div>
+      <p style="font-size:11px;color:#909399;">如果「本应」和「实际」不一致，系统会标记为 🤝 互助</p>
+    </div>
+  `;
+  document.getElementById('qm-title').textContent = t ? '编辑小事' : '🤝 记录小事';
+  document.getElementById('qm-body').innerHTML = body;
+  document.getElementById('qm-confirm').textContent = '保存';
+  document.getElementById('qm-confirm').onclick = saveHelpTask;
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function saveHelpTask() {
+  const date = document.getElementById('help-date').value || helpTodayStr();
+  const task = document.getElementById('help-task').value.trim();
+  const original = Array.from(document.querySelectorAll('input[name="help-original"]:checked')).map(c => c.value);
+  const doers = Array.from(document.querySelectorAll('input[name="help-doer"]:checked')).map(c => c.value);
+
+  if (!task) { alert('请填写事情'); return; }
+  if (doers.length === 0) { alert('请选择实际谁干了'); return; }
+
+  if (editingHelpTaskId) {
+    const t = helpTasks.find(x => x.id === editingHelpTaskId);
+    if (t) { Object.assign(t, { date, task, original, doers }); }
+  } else {
+    helpTasks.push({ id: Date.now(), date, task, original, doers });
+  }
+  saveHelpTasks();
+  document.getElementById('quick-modal').classList.remove('show');
+  renderHelpTasks();
+}
+
+function deleteHelpTask(id) {
+  if (!confirm('确定删除这条记录吗？')) return;
+  helpTasks = helpTasks.filter(t => t.id !== id);
+  saveHelpTasks();
+  renderHelpTasks();
 }
 
 // 点击外部关闭城市列表
