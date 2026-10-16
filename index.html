@@ -1687,9 +1687,13 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
           <div class="panel-header">
             <h3>✅ 习惯打卡</h3>
             <div style="display:flex;gap:8px;align-items:center;">
-              <button class="btn btn-ghost btn-sm" onclick="habitPrevMonth()">‹</button>
+              <div style="display:flex;border:1px solid #dcdfe6;border-radius:6px;overflow:hidden;">
+                <button id="habit-view-month" class="btn btn-sm" style="border-radius:0;border:none;background:#667eea;color:#fff;" onclick="setHabitViewMode('month')">月</button>
+                <button id="habit-view-year" class="btn btn-sm" style="border-radius:0;border:none;background:#fff;color:#606266;" onclick="setHabitViewMode('year')">年</button>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="habitPrev()">‹</button>
               <span id="habit-month-label" style="font-size:14px;font-weight:600;min-width:90px;text-align:center;">2026年10月</span>
-              <button class="btn btn-ghost btn-sm" onclick="habitNextMonth()">›</button>
+              <button class="btn btn-ghost btn-sm" onclick="habitNext()">›</button>
               <button class="btn btn-primary btn-sm" onclick="addHabitCalendar()">+ 添加习惯</button>
             </div>
           </div>
@@ -1749,21 +1753,25 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
         <!-- 月份切换 -->
         <div class="panel" style="margin-bottom:16px;">
           <div class="panel-header">
-            <h3>📒 月度账单</h3>
+            <h3>📒 账单</h3>
             <div style="display:flex;gap:8px;align-items:center;">
-              <button class="btn btn-ghost btn-sm" onclick="accPrevMonth()">‹</button>
+              <div style="display:flex;border:1px solid #dcdfe6;border-radius:6px;overflow:hidden;">
+                <button id="acc-view-month" class="btn btn-sm" style="border-radius:0;border:none;background:#667eea;color:#fff;" onclick="setAccViewMode('month')">月</button>
+                <button id="acc-view-year" class="btn btn-sm" style="border-radius:0;border:none;background:#fff;color:#606266;" onclick="setAccViewMode('year')">年</button>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="accPrev()">‹</button>
               <span id="acc-month-label" style="font-size:14px;font-weight:600;min-width:90px;text-align:center;"></span>
-              <button class="btn btn-ghost btn-sm" onclick="accNextMonth()">›</button>
+              <button class="btn btn-ghost btn-sm" onclick="accNext()">›</button>
               <button class="btn btn-primary btn-sm" onclick="addAccountEntry()">+ 记一笔</button>
             </div>
           </div>
         </div>
         <!-- 月度统计 -->
         <div class="stat-cards" style="margin-bottom:16px;">
-          <div class="stat-card"><div class="label">本月收入</div><div class="value" id="acc-income" style="color:#52c41a;">0<span class="unit">元</span></div></div>
-          <div class="stat-card"><div class="label">本月支出</div><div class="value" id="acc-expense" style="color:#f5222d;">0<span class="unit">元</span></div></div>
-          <div class="stat-card"><div class="label">本月结余</div><div class="value" id="acc-balance">0<span class="unit">元</span></div></div>
-          <div class="stat-card"><div class="label">笔数</div><div class="value" id="acc-count">0<span class="unit">笔</span></div></div>
+          <div class="stat-card"><div class="label" id="acc-label-income">本月收入</div><div class="value" id="acc-income" style="color:#52c41a;">0<span class="unit">元</span></div></div>
+          <div class="stat-card"><div class="label" id="acc-label-expense">本月支出</div><div class="value" id="acc-expense" style="color:#f5222d;">0<span class="unit">元</span></div></div>
+          <div class="stat-card"><div class="label" id="acc-label-balance">本月结余</div><div class="value" id="acc-balance">0<span class="unit">元</span></div></div>
+          <div class="stat-card"><div class="label" id="acc-label-count">笔数</div><div class="value" id="acc-count">0<span class="unit">笔</span></div></div>
         </div>
         <!-- 共同账本结算 -->
         <div class="panel" id="acc-settlement-panel" style="margin-bottom:16px;display:none;">
@@ -2058,6 +2066,7 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
                 <select id="memo-cat-filter" onchange="renderMemos()" style="padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:13px;background:#fff;">
                   <option value="all">全部分类</option>
                 </select>
+                <button class="btn btn-ghost btn-sm" onclick="manageMemoCats()">⚙ 分类</button>
               </div>
               <button class="btn btn-primary btn-sm" onclick="openMemoModal()">+ 新建备忘</button>
             </div>
@@ -2623,13 +2632,17 @@ let focusRunning = false;
 let quickType = '';
 let quickEditId = null;
 
-const catMeta = {
-  work:   { icon: '💼', name: '工作' },
-  study:  { icon: '📖', name: '学习' },
-  family: { icon: '🏠', name: '家庭' },
-  fun:    { icon: '🎮', name: '娱乐' },
-  other:  { icon: '📦', name: '其他' }
-};
+const defaultTodoCats = [
+  { id: 'work', icon: '💼', name: '工作' },
+  { id: 'study', icon: '📖', name: '学习' },
+  { id: 'family', icon: '🏠', name: '家庭' },
+  { id: 'fun', icon: '🎮', name: '娱乐' },
+  { id: 'other', icon: '📦', name: '其他' }
+];
+let todoCats = JSON.parse(localStorage.getItem('hy_todo_cats') || 'null') || defaultTodoCats;
+function saveTodoCats() { localStorage.setItem('hy_todo_cats', JSON.stringify(todoCats)); }
+function getTodoCatMeta() { const m = {}; todoCats.forEach(c => { m[c.id] = c; }); return m; }
+
 const quadMeta = {
   'iu':   { label: '重要且紧急',   badge: 'q-iu-badge' },
   'inu':  { label: '重要不紧急',   badge: 'q-inu-badge' },
@@ -2735,14 +2748,16 @@ function renderTodos() {
   const box = document.getElementById('todo-list');
   if (!box) return;
   if (todos.length === 0) { box.innerHTML = '<div class="empty" style="padding:20px;"><div class="icon" style="font-size:32px;">📋</div><p>还没有待办，点击右上角添加</p></div>'; return; }
-  const cats = ['work','study','family','fun','other'];
+  const catMeta = getTodoCatMeta();
+  const cats = todoCats.map(c => c.id);
   box.innerHTML = cats.map(cat => {
     const items = todos.filter(t => t.category === cat);
     if (items.length === 0) return '';
     const done = items.filter(t => t.done).length;
+    const cm = catMeta[cat] || { icon: '📦', name: cat };
     return `<div class="todo-cat">
       <div class="cat-header">
-        <div class="cat-title"><span class="cat-icon">${catMeta[cat].icon}</span>${catMeta[cat].name}</div>
+        <div class="cat-title"><span class="cat-icon">${cm.icon}</span>${cm.name}</div>
         <div class="cat-progress">${done}/${items.length}</div>
       </div>
       ${items.map(t => {
@@ -2803,22 +2818,70 @@ function cycleQuadrant(id) { setQuadrant(id, null); } // 兼容旧调用
 function addTodo() {
   quickType = 'todo';
   document.getElementById('qm-title').textContent = '添加待办事项';
+  const catOpts = todoCats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
   document.getElementById('qm-body').innerHTML = `
     <div class="form-row"><label>事项内容 *</label><input type="text" id="qm-name" placeholder="如：写教案"></div>
     <div class="form-row"><label>分类</label>
-      <select id="qm-cat">
-        <option value="work">💼 工作</option>
-        <option value="study">📖 学习</option>
-        <option value="family">🏠 家庭</option>
-        <option value="fun">🎮 娱乐</option>
-        <option value="other">📦 其他</option>
-      </select>
+      <select id="qm-cat">${catOpts}</select>
+      <a href="javascript:manageTodoCats()" style="font-size:12px;color:#667eea;margin-top:4px;display:inline-block;">⚙ 管理分类</a>
     </div>
   `;
   document.getElementById('qm-confirm').onclick = confirmQuick;
   document.getElementById('quick-modal').classList.add('show');
 }
 function delTodo(id) { todos = todos.filter(t => t.id !== id); saveTodo(); renderTodos(); renderQuadrants(); }
+
+// ---- 待办分类管理 ----
+function manageTodoCats() {
+  document.getElementById('qm-title').textContent = '📋 管理待办分类';
+  const render = () => {
+    document.getElementById('qm-body').innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="new-cat-icon" placeholder="图标" maxlength="2" style="width:60px;padding:8px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;text-align:center;">
+          <input type="text" id="new-cat-name" placeholder="分类名称" style="flex:1;padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="addTodoCat()">添加</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${todoCats.map(c => `<span style="display:inline-flex;align-items:center;gap:6px;background:#f5f7fa;padding:6px 12px;border-radius:16px;font-size:13px;">${c.icon} ${escapeHtml(c.name)}<span onclick="delTodoCat('${c.id}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span></span>`).join('')}
+        </div>
+        ${todoCats.length === 0 ? '<p style="color:#909399;font-size:13px;text-align:center;padding:10px 0;">还没有分类</p>' : ''}
+      </div>
+    `;
+  };
+  render();
+  document.getElementById('qm-confirm').textContent = '完成';
+  document.getElementById('qm-confirm').onclick = () => {
+    document.getElementById('quick-modal').classList.remove('show');
+    document.getElementById('qm-confirm').textContent = '确定';
+    renderTodos();
+  };
+  document.getElementById('quick-modal').classList.add('show');
+  window._renderTodoCatMgr = render;
+}
+function addTodoCat() {
+  const icon = document.getElementById('new-cat-icon').value.trim() || '📦';
+  const name = document.getElementById('new-cat-name').value.trim();
+  if (!name) return;
+  const id = 'cat_' + Date.now();
+  todoCats.push({ id, icon, name });
+  saveTodoCats();
+  window._renderTodoCatMgr && window._renderTodoCatMgr();
+}
+function delTodoCat(id) {
+  const cat = todoCats.find(c => c.id === id);
+  if (!cat) return;
+  if (!confirm(`确定删除分类「${cat.name}」吗？\n该分类下的待办将移至「其他」。`)) return;
+  todoCats = todoCats.filter(c => c.id !== id);
+  saveTodoCats();
+  // 将该分类下的待办移至 other
+  const otherCat = todoCats.find(c => c.id === 'other') || todoCats[0];
+  if (otherCat) {
+    todos.forEach(t => { if (t.category === id) t.category = otherCat.id; });
+    saveTodo();
+  }
+  window._renderTodoCatMgr && window._renderTodoCatMgr();
+}
 
 // ---- 快速添加弹窗 ----
 function closeQuick() { document.getElementById('quick-modal').classList.remove('show'); document.getElementById('qm-confirm').textContent = '确定'; }
@@ -7238,16 +7301,35 @@ if (habitCalendars.length === 0) {
   localStorage.setItem('hy_habit_calendars', JSON.stringify(habitCalendars));
 }
 let habitViewDate = new Date();
+let habitViewMode = 'month'; // 'month' | 'year'
 const HABIT_CAL_COLORS = ['#f5576c', '#52c41a', '#1890ff', '#fa8c16', '#722ed1', '#13c2c2', '#eb2f96', '#a0d911'];
 
 function saveHabitCalendars() { localStorage.setItem('hy_habit_calendars', JSON.stringify(habitCalendars)); }
 
-function habitPrevMonth() { habitViewDate.setMonth(habitViewDate.getMonth() - 1); renderHabitCalendars(); }
-function habitNextMonth() { habitViewDate.setMonth(habitViewDate.getMonth() + 1); renderHabitCalendars(); }
+function habitPrev() {
+  if (habitViewMode === 'year') habitViewDate.setFullYear(habitViewDate.getFullYear() - 1);
+  else habitViewDate.setMonth(habitViewDate.getMonth() - 1);
+  renderHabitCalendars();
+}
+function habitNext() {
+  if (habitViewMode === 'year') habitViewDate.setFullYear(habitViewDate.getFullYear() + 1);
+  else habitViewDate.setMonth(habitViewDate.getMonth() + 1);
+  renderHabitCalendars();
+}
+
+function setHabitViewMode(mode) {
+  habitViewMode = mode;
+  document.getElementById('habit-view-month').style.background = mode === 'month' ? '#667eea' : '#fff';
+  document.getElementById('habit-view-month').style.color = mode === 'month' ? '#fff' : '#606266';
+  document.getElementById('habit-view-year').style.background = mode === 'year' ? '#667eea' : '#fff';
+  document.getElementById('habit-view-year').style.color = mode === 'year' ? '#fff' : '#606266';
+  renderHabitCalendars();
+}
 
 function fmtHabitDate(y, m, d) { return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 
 function renderHabitCalendars() {
+  if (habitViewMode === 'year') { renderHabitYearView(); return; }
   const y = habitViewDate.getFullYear();
   const m = habitViewDate.getMonth();
   document.getElementById('habit-month-label').textContent = `${y}年${m+1}月`;
@@ -7293,6 +7375,60 @@ function renderHabitCalendars() {
     html += card;
   });
   grid.innerHTML = html;
+}
+
+// 习惯年度视图：每个习惯一行，12 个月的打卡天数热力
+function renderHabitYearView() {
+  const y = habitViewDate.getFullYear();
+  document.getElementById('habit-month-label').textContent = `${y}年`;
+  const grid = document.getElementById('habit-grid');
+  if (habitCalendars.length === 0) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:40px;"><div class="icon">✅</div><p>还没有习惯，点击「添加习惯」开始打卡吧</p></div>';
+    return;
+  }
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  let html = `<div style="grid-column:1/-1;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:600px;">
+      <thead><tr style="background:#f5f7fa;">
+        <th style="padding:10px;text-align:left;border-bottom:2px solid #e8e8e8;position:sticky;left:0;background:#f5f7fa;z-index:1;">习惯</th>
+        ${months.map(mo => `<th style="padding:10px;text-align:center;border-bottom:2px solid #e8e8e8;">${mo}</th>`).join('')}
+        <th style="padding:10px;text-align:center;border-bottom:2px solid #e8e8e8;">全年</th>
+      </tr></thead>
+      <tbody>`;
+  habitCalendars.forEach(habit => {
+    const checkSet = new Set(habit.checks || []);
+    const monthly = [];
+    let yearTotal = 0;
+    for (let mo = 0; mo < 12; mo++) {
+      let cnt = 0;
+      const daysInMonth = new Date(y, mo + 1, 0).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        if (checkSet.has(fmtHabitDate(y, mo, d))) cnt++;
+      }
+      monthly.push(cnt);
+      yearTotal += cnt;
+    }
+    html += `<tr>
+      <td style="padding:10px;border-bottom:1px solid #f0f0f0;position:sticky;left:0;background:#fff;z-index:1;"><span class="habit-color-dot" style="background:${habit.color};display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;"></span>${escapeHtml(habit.name)}</td>
+      ${monthly.map(c => {
+        const maxDays = 31;
+        const intensity = c > 0 ? Math.min(1, c / 15) : 0;
+        const bg = c > 0 ? `rgba(${hexToRgb(habit.color)}, ${0.15 + intensity * 0.7})` : '#fafafa';
+        return `<td style="padding:10px;text-align:center;border-bottom:1px solid #f0f0f0;background:${bg};color:${c > 0 ? '#303133' : '#c0c4cc'};font-weight:${c > 0 ? '600' : 'normal'};">${c}</td>`;
+      }).join('')}
+      <td style="padding:10px;text-align:center;border-bottom:1px solid #f0f0f0;font-weight:700;color:${habit.color};">${yearTotal}天</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  grid.innerHTML = html;
+}
+
+// 十六进制转 RGB（用于年度热力图透明度）
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `${r}, ${g}, ${b}`;
 }
 
 // ---- 习惯卡片拖拽排序 ----
@@ -7427,7 +7563,7 @@ function renderSavings() {
       <div class="saving-icon">${icon}</div>
       <div class="saving-info">
         <div class="saving-name"><span>${escapeHtml(g.name)}</span>${done ? '<span style="color:#52c41a;font-size:12px;">✅ 已达成</span>' : ''}</div>
-        <div class="saving-amount">已存 <strong>¥${(g.saved||0).toFixed(0)}</strong> / 目标 ¥${g.goal.toFixed(0)}</div>
+        <div class="saving-amount">已存 <strong>¥${(g.saved||0).toFixed(0)}</strong> / 目标 ¥${g.goal.toFixed(0)} <span style="color:#667eea;font-weight:600;">${pct}%</span></div>
         <div class="saving-bar"><div class="saving-bar-fill" style="width:${pct}%"></div></div>
       </div>
       <div class="saving-actions">
@@ -7439,39 +7575,87 @@ function renderSavings() {
   }).join('');
 }
 
-function addSavingGoal() {
-  const name = prompt('请输入心愿名称（如：买戒指、旅行基金）：');
-  if (!name || !name.trim()) return;
-  const goal = parseFloat(prompt('请输入心愿目标金额（元）：', '5000'));
-  if (isNaN(goal) || goal <= 0) { alert('请输入有效金额'); return; }
-  const icon = savingIcons[savings.length % savingIcons.length];
-  savings.push({ id: Date.now(), name: name.trim(), goal, saved: 0, icon });
-  saveSavings();
-  renderSavings();
+function openSavingModal(id) {
+  const g = id ? savings.find(x => x.id === id) : null;
+  document.getElementById('qm-title').textContent = g ? '✏️ 编辑心愿' : '🎯 新增心愿';
+  const iconOpts = savingIcons.map(ic => `<label style="cursor:pointer;"><input type="radio" name="saving-icon" value="${ic}" ${(g ? g.icon : savingIcons[0]) == ic ? 'checked' : ''} style="display:none;"><span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;font-size:20px;background:${(g ? g.icon : savingIcons[0]) == ic ? '#eef1ff' : '#f5f7fa'};border:2px solid ${(g ? g.icon : savingIcons[0]) == ic ? '#667eea' : 'transparent'};">${ic}</span></label>`).join('');
+  document.getElementById('qm-body').innerHTML = `
+    <div class="form-row"><label>心愿名称 *</label><input type="text" id="saving-name" placeholder="如：买戒指、旅行基金" value="${g ? escapeHtml(g.name || '') : ''}"></div>
+    <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label>目标金额（元）*</label><input type="number" id="saving-goal" placeholder="5000" value="${g ? g.goal : ''}" style="width:100%;padding:10px;border:1px solid #dcdfe6;border-radius:8px;font-size:14px;"></div>
+      <div><label>已存金额（元）</label><input type="number" id="saving-saved" placeholder="0" value="${g ? (g.saved || 0) : 0}" style="width:100%;padding:10px;border:1px solid #dcdfe6;border-radius:8px;font-size:14px;"></div>
+    </div>
+    <div class="form-row"><label>选择图标</label><div style="display:flex;gap:8px;flex-wrap:wrap;">${iconOpts}</div></div>
+    <div id="saving-preview" style="margin-top:8px;padding:10px;background:#f5f7fa;border-radius:8px;font-size:13px;color:#606266;"></div>
+  `;
+  // 实时预览进度
+  const updatePreview = () => {
+    const goal = parseFloat(document.getElementById('saving-goal').value) || 0;
+    const saved = parseFloat(document.getElementById('saving-saved').value) || 0;
+    const pct = goal > 0 ? Math.min(100, (saved / goal * 100)).toFixed(1) : 0;
+    document.getElementById('saving-preview').innerHTML = goal > 0
+      ? `进度：已存 ¥${saved.toFixed(0)} / 目标 ¥${goal.toFixed(0)} = <strong style="color:#667eea;">${pct}%</strong>${saved >= goal ? ' 🎉 已达成！' : ''}`
+      : '请输入目标金额以查看进度';
+  };
+  document.getElementById('saving-goal').addEventListener('input', updatePreview);
+  document.getElementById('saving-saved').addEventListener('input', updatePreview);
+  updatePreview();
+
+  document.getElementById('qm-confirm').onclick = () => {
+    const name = document.getElementById('saving-name').value.trim();
+    const goal = parseFloat(document.getElementById('saving-goal').value);
+    const saved = parseFloat(document.getElementById('saving-saved').value) || 0;
+    const icon = document.querySelector('input[name="saving-icon"]:checked')?.value || '🎯';
+    if (!name) { alert('请输入心愿名称'); return; }
+    if (isNaN(goal) || goal <= 0) { alert('请输入有效目标金额'); return; }
+    if (g) {
+      Object.assign(g, { name, goal, saved, icon });
+    } else {
+      savings.push({ id: Date.now(), name, goal, saved, icon });
+    }
+    saveSavings();
+    document.getElementById('quick-modal').classList.remove('show');
+    renderSavings();
+    if (!g && saved >= goal) setTimeout(() => alert(`🎉 恭喜！心愿「${name}」已达成！`), 100);
+    else if (g && saved >= goal && g.saved < goal) setTimeout(() => alert(`🎉 恭喜！心愿「${name}」已达成！`), 100);
+  };
+  document.getElementById('quick-modal').classList.add('show');
 }
 
-function editSavingGoal(id) {
-  const g = savings.find(x => x.id === id);
-  if (!g) return;
-  const name = prompt('修改心愿名称：', g.name);
-  if (name === null) return;
-  const goal = parseFloat(prompt('修改目标金额（元）：', g.goal));
-  if (isNaN(goal) || goal <= 0) { alert('请输入有效金额'); return; }
-  g.name = name.trim() || g.name;
-  g.goal = goal;
-  saveSavings();
-  renderSavings();
-}
+function addSavingGoal() { openSavingModal(null); }
+function editSavingGoal(id) { openSavingModal(id); }
 
 function addMoney(id) {
   const g = savings.find(x => x.id === id);
   if (!g) return;
-  const amt = parseFloat(prompt(`为「${g.name}」存入金额（元）：`, '100'));
-  if (isNaN(amt) || amt <= 0) { alert('请输入有效金额'); return; }
-  g.saved = (g.saved || 0) + amt;
-  saveSavings();
-  renderSavings();
-  if (g.saved >= g.goal) setTimeout(() => alert(`🎉 恭喜！心愿「${g.name}」已达成！`), 100);
+  document.getElementById('qm-title').textContent = `💰 为「${g.name}」存入`;
+  const pct = g.goal > 0 ? Math.min(100, (g.saved / g.goal * 100)).toFixed(1) : 0;
+  document.getElementById('qm-body').innerHTML = `
+    <div style="margin-bottom:12px;padding:12px;background:#f5f7fa;border-radius:8px;font-size:13px;">
+      当前进度：已存 ¥${(g.saved||0).toFixed(0)} / 目标 ¥${g.goal.toFixed(0)} = <strong style="color:#667eea;">${pct}%</strong>
+    </div>
+    <div class="form-row"><label>存入金额（元）*</label><input type="number" id="money-amt" placeholder="100" autofocus style="width:100%;padding:10px;border:1px solid #dcdfe6;border-radius:8px;font-size:14px;"></div>
+    <div id="money-preview" style="margin-top:8px;font-size:13px;color:#606266;"></div>
+  `;
+  const updatePreview = () => {
+    const amt = parseFloat(document.getElementById('money-amt').value) || 0;
+    const newSaved = (g.saved || 0) + amt;
+    const newPct = g.goal > 0 ? Math.min(100, (newSaved / g.goal * 100)).toFixed(1) : 0;
+    document.getElementById('money-preview').innerHTML = amt > 0
+      ? `存入后：已存 ¥${newSaved.toFixed(0)} / 目标 ¥${g.goal.toFixed(0)} = <strong style="color:#667eea;">${newPct}%</strong>${newSaved >= g.goal ? ' 🎉 将达成！' : ''}`
+      : '';
+  };
+  document.getElementById('money-amt').addEventListener('input', updatePreview);
+  document.getElementById('qm-confirm').onclick = () => {
+    const amt = parseFloat(document.getElementById('money-amt').value);
+    if (isNaN(amt) || amt <= 0) { alert('请输入有效金额'); return; }
+    g.saved = (g.saved || 0) + amt;
+    saveSavings();
+    document.getElementById('quick-modal').classList.remove('show');
+    renderSavings();
+    if (g.saved >= g.goal) setTimeout(() => alert(`🎉 恭喜！心愿「${g.name}」已达成！`), 100);
+  };
+  document.getElementById('quick-modal').classList.add('show');
 }
 
 function deleteSavingGoal(id) {
@@ -7530,8 +7714,26 @@ const accCategories = {
 function fmtAccDate(y, m, d) { return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 function getCat(type, key) { return (accCategories[type] || []).find(c => c.key === key) || { name: '其他', icon: '📦' }; }
 
-function accPrevMonth() { accViewDate.setMonth(accViewDate.getMonth() - 1); renderAccounts(); }
-function accNextMonth() { accViewDate.setMonth(accViewDate.getMonth() + 1); renderAccounts(); }
+function accPrev() {
+  if (accViewMode === 'year') accViewDate.setFullYear(accViewDate.getFullYear() - 1);
+  else accViewDate.setMonth(accViewDate.getMonth() - 1);
+  renderAccounts();
+}
+function accNext() {
+  if (accViewMode === 'year') accViewDate.setFullYear(accViewDate.getFullYear() + 1);
+  else accViewDate.setMonth(accViewDate.getMonth() + 1);
+  renderAccounts();
+}
+
+let accViewMode = 'month'; // 'month' | 'year'
+function setAccViewMode(mode) {
+  accViewMode = mode;
+  document.getElementById('acc-view-month').style.background = mode === 'month' ? '#667eea' : '#fff';
+  document.getElementById('acc-view-month').style.color = mode === 'month' ? '#fff' : '#606266';
+  document.getElementById('acc-view-year').style.background = mode === 'year' ? '#667eea' : '#fff';
+  document.getElementById('acc-view-year').style.color = mode === 'year' ? '#fff' : '#606266';
+  renderAccounts();
+}
 
 // 渲染账本切换栏
 function renderLedgerTabs() {
@@ -7592,22 +7794,88 @@ function renderAccounts() {
   const isShared = ledger.type === 'shared';
   const y = accViewDate.getFullYear();
   const m = accViewDate.getMonth();
-  document.getElementById('acc-month-label').textContent = `${y}年${m+1}月`;
-  const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`;
-  const monthRecords = accounts
-    .filter(r => (r.ledgerId || 'personal') === ledger.id && r.date && r.date.startsWith(monthPrefix))
+  const isYear = accViewMode === 'year';
+  document.getElementById('acc-month-label').textContent = isYear ? `${y}年` : `${y}年${m+1}月`;
+  document.getElementById('acc-label-income').textContent = isYear ? '本年收入' : '本月收入';
+  document.getElementById('acc-label-expense').textContent = isYear ? '本年支出' : '本月支出';
+  document.getElementById('acc-label-balance').textContent = isYear ? '本年结余' : '本月结余';
+  const prefix = isYear ? `${y}-` : `${y}-${String(m+1).padStart(2,'0')}`;
+  const periodRecords = accounts
+    .filter(r => (r.ledgerId || 'personal') === ledger.id && r.date && r.date.startsWith(prefix))
     .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
 
   let income = 0, expense = 0;
-  monthRecords.forEach(r => { if (r.type === 'income') income += r.amount; else expense += r.amount; });
+  periodRecords.forEach(r => { if (r.type === 'income') income += r.amount; else expense += r.amount; });
   document.getElementById('acc-income').innerHTML = `${income.toFixed(2)}<span class="unit">元</span>`;
   document.getElementById('acc-expense').innerHTML = `${expense.toFixed(2)}<span class="unit">元</span>`;
   const balance = income - expense;
   const balEl = document.getElementById('acc-balance');
   balEl.innerHTML = `${balance.toFixed(2)}<span class="unit">元</span>`;
   balEl.style.color = balance >= 0 ? '#52c41a' : '#f5222d';
-  document.getElementById('acc-count').innerHTML = `${monthRecords.length}<span class="unit">笔</span>`;
+  document.getElementById('acc-count').innerHTML = `${periodRecords.length}<span class="unit">笔</span>`;
 
+  // 年度视图：显示月度汇总表
+  if (isYear) {
+    const settlePanel = document.getElementById('acc-settlement-panel');
+    settlePanel.style.display = 'none';
+    const list = document.getElementById('account-list');
+    const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const monthData = months.map((mo, i) => {
+      const mp = `${y}-${String(i+1).padStart(2,'0')}`;
+      const recs = accounts.filter(r => (r.ledgerId || 'personal') === ledger.id && r.date && r.date.startsWith(mp));
+      let inc = 0, exp = 0;
+      recs.forEach(r => { if (r.type === 'income') inc += r.amount; else exp += r.amount; });
+      return { month: mo, income: inc, expense: exp, count: recs.length };
+    });
+    if (periodRecords.length === 0) {
+      list.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">📒</div><p>本年还没有账单，点击「记一笔」开始记录</p></div>';
+      return;
+    }
+    list.innerHTML = `
+      <div style="overflow-x:auto;margin-bottom:16px;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:500px;">
+          <thead><tr style="background:#f5f7fa;">
+            <th style="padding:10px;text-align:left;border-bottom:2px solid #e8e8e8;">月份</th>
+            <th style="padding:10px;text-align:right;border-bottom:2px solid #e8e8e8;color:#52c41a;">收入</th>
+            <th style="padding:10px;text-align:right;border-bottom:2px solid #e8e8e8;color:#f5222d;">支出</th>
+            <th style="padding:10px;text-align:right;border-bottom:2px solid #e8e8e8;">结余</th>
+            <th style="padding:10px;text-align:center;border-bottom:2px solid #e8e8e8;">笔数</th>
+          </tr></thead>
+          <tbody>
+            ${monthData.map(d => {
+              const bal = d.income - d.expense;
+              return `<tr>
+                <td style="padding:10px;border-bottom:1px solid #f0f0f0;font-weight:600;">${d.month}</td>
+                <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#52c41a;">${d.income > 0 ? d.income.toFixed(2) : '-'}</td>
+                <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#f5222d;">${d.expense > 0 ? d.expense.toFixed(2) : '-'}</td>
+                <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:right;color:${bal >= 0 ? '#52c41a' : '#f5222d'};font-weight:600;">${bal.toFixed(2)}</td>
+                <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">${d.count}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="background:#fafafa;font-weight:700;">
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;">合计</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#52c41a;">${income.toFixed(2)}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:right;color:#f5222d;">${expense.toFixed(2)}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:right;color:${balance >= 0 ? '#52c41a' : '#f5222d'};">${balance.toFixed(2)}</td>
+              <td style="padding:10px;border-bottom:1px solid #f0f0f0;text-align:center;">${periodRecords.length}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel" style="box-shadow:none;border:1px solid #f0f0f0;">
+        <div class="panel-header" style="background:#fafafa;"><h3 style="font-size:14px;">📋 本年明细（${periodRecords.length} 笔）</h3></div>
+        <div class="panel-body" id="account-detail-list" style="padding:12px 20px;max-height:400px;overflow-y:auto;"></div>
+      </div>
+    `;
+    // 渲染明细
+    const detailList = document.getElementById('account-detail-list');
+    if (detailList) {
+      detailList.innerHTML = renderAccountItems(periodRecords);
+    }
+    return;
+  }
+
+  const monthRecords = periodRecords;
   // 共同账本结算
   const settlePanel = document.getElementById('acc-settlement-panel');
   const settleBox = document.getElementById('acc-settlement');
@@ -7637,7 +7905,14 @@ function renderAccounts() {
     list.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">📒</div><p>本月还没有账单，点击「记一笔」开始记录</p></div>';
     return;
   }
-  list.innerHTML = monthRecords.map(r => {
+  list.innerHTML = renderAccountItems(monthRecords, ledger);
+}
+
+// 渲染账单明细列表（月/年视图共用）
+function renderAccountItems(records, ledger) {
+  const isShared = ledger && ledger.type === 'shared';
+  if (!records || records.length === 0) return '<div class="empty" style="padding:20px;"><p>暂无记录</p></div>';
+  return records.map(r => {
     const cat = getCat(r.type, r.category);
     const isIncome = r.type === 'income';
     let extra = '';
@@ -8002,37 +8277,69 @@ function deleteLedger(id) {
 // ========== 健康与生活 · 待完成事项 ==========
 let hlTodos = JSON.parse(localStorage.getItem('hy_hl_todos') || '[]');
 function saveHlTodos() { localStorage.setItem('hy_hl_todos', JSON.stringify(hlTodos)); }
-const hlPriorityMap = { high: { name: '高', cls: 'high' }, mid: { name: '中', cls: 'mid' }, low: { name: '低', cls: 'low' } };
+
+const defaultHlTodoCats = [
+  { id: 'health', icon: '💪', name: '健康' },
+  { id: 'life', icon: '🌱', name: '生活' },
+  { id: 'finance', icon: '💰', name: '理财' },
+  { id: 'study', icon: '📖', name: '学习' },
+  { id: 'other', icon: '📦', name: '其他' }
+];
+let hlTodoCats = JSON.parse(localStorage.getItem('hy_hl_todo_cats') || 'null') || defaultHlTodoCats;
+function saveHlTodoCats() { localStorage.setItem('hy_hl_todo_cats', JSON.stringify(hlTodoCats)); }
+function getHlTodoCatMeta() { const m = {}; hlTodoCats.forEach(c => { m[c.id] = c; }); return m; }
 
 function renderHlTodos() {
   const box = document.getElementById('hl-todo-list');
   if (!box) return;
   if (hlTodos.length === 0) { box.innerHTML = '<div class="empty" style="padding:20px;"><div class="icon">📋</div><p>还没有待办，点击右上角「添加」</p></div>'; return; }
-  // 未完成在前，按优先级排序
-  const sorted = [...hlTodos].sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    const order = { high: 0, mid: 1, low: 2 };
-    return (order[a.priority] || 1) - (order[b.priority] || 1);
-  });
-  box.innerHTML = sorted.map(t => {
-    const p = hlPriorityMap[t.priority] || hlPriorityMap.mid;
-    return `<div class="hltodo-item ${t.done ? 'done' : ''}">
-      <div class="hltodo-check ${t.done ? 'checked' : ''}" onclick="toggleHlTodo(${t.id})">${t.done ? '✓' : ''}</div>
-      <div class="hltodo-text">${escapeHtml(t.text)}</div>
-      <span class="hltodo-priority ${p.cls}">${p.name}</span>
-      <span class="hltodo-del" onclick="deleteHlTodo(${t.id})">✕</span>
+  const catMeta = getHlTodoCatMeta();
+  const cats = hlTodoCats.map(c => c.id);
+  box.innerHTML = cats.map(cat => {
+    const items = hlTodos.filter(t => (t.category || 'other') === cat);
+    if (items.length === 0) return '';
+    const done = items.filter(t => t.done).length;
+    const cm = catMeta[cat] || { icon: '📦', name: cat };
+    return `<div class="todo-cat">
+      <div class="cat-header">
+        <div class="cat-title"><span class="cat-icon">${cm.icon}</span>${cm.name}</div>
+        <div class="cat-progress">${done}/${items.length}</div>
+      </div>
+      ${items.map(t => {
+        const qb = t.quadrant
+          ? `<button class="todo-quad-btn ${quadMeta[t.quadrant].badge}" onclick="event.stopPropagation();toggleHlQuadMenu(event, ${t.id})">${quadMeta[t.quadrant].label}</button>`
+          : `<button class="todo-quad-btn" onclick="event.stopPropagation();toggleHlQuadMenu(event, ${t.id})">标记 ▾</button>`;
+        return `<div class="todo-item ${t.done ? 'done' : ''}">
+          <div class="todo-check" onclick="toggleHlTodo(${t.id})">${t.done ? '✓' : ''}</div>
+          <span class="todo-text" onclick="toggleHlTodo(${t.id})">${escapeHtml(t.text)}</span>
+          ${qb}
+          <span class="todo-del" onclick="deleteHlTodo(${t.id})">✕</span>
+        </div>`;
+      }).join('')}
     </div>`;
   }).join('');
 }
 
 function addHlTodo() {
-  const text = prompt('请输入待办内容：');
-  if (!text || !text.trim()) return;
-  const p = prompt('优先级（高/中/低）：', '中') || '中';
-  const priority = p === '高' ? 'high' : p === '低' ? 'low' : 'mid';
-  hlTodos.push({ id: Date.now(), text: text.trim(), done: false, priority });
-  saveHlTodos();
-  renderHlTodos();
+  document.getElementById('qm-title').textContent = '添加待办事项';
+  const catOpts = hlTodoCats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  document.getElementById('qm-body').innerHTML = `
+    <div class="form-row"><label>事项内容 *</label><input type="text" id="hl-todo-text" placeholder="如：体检、跑步"></div>
+    <div class="form-row"><label>分类</label>
+      <select id="hl-todo-cat">${catOpts}</select>
+      <a href="javascript:manageHlTodoCats()" style="font-size:12px;color:#667eea;margin-top:4px;display:inline-block;">⚙ 管理分类</a>
+    </div>
+  `;
+  document.getElementById('qm-confirm').onclick = () => {
+    const text = document.getElementById('hl-todo-text').value.trim();
+    const cat = document.getElementById('hl-todo-cat').value;
+    if (!text) { alert('请填写事项内容'); return; }
+    hlTodos.push({ id: Date.now(), text, category: cat, done: false, quadrant: null });
+    saveHlTodos();
+    document.getElementById('quick-modal').classList.remove('show');
+    renderHlTodos();
+  };
+  document.getElementById('quick-modal').classList.add('show');
 }
 
 function toggleHlTodo(id) {
@@ -8048,6 +8355,89 @@ function deleteHlTodo(id) {
   hlTodos = hlTodos.filter(t => t.id !== id);
   saveHlTodos();
   renderHlTodos();
+}
+
+// 健康待办四象限
+let hlQuadMenuOpen = null;
+function toggleHlQuadMenu(e, id) {
+  closeHlQuadMenu();
+  const t = hlTodos.find(x => x.id === id);
+  const menu = document.createElement('div');
+  menu.className = 'quad-menu';
+  menu.innerHTML = `
+    <div class="quad-menu-item" onclick="setHlQuadrant(${id}, 'iu')"><span class="dot red"></span>重要且紧急</div>
+    <div class="quad-menu-item" onclick="setHlQuadrant(${id}, 'inu')"><span class="dot orange"></span>重要不紧急</div>
+    <div class="quad-menu-item" onclick="setHlQuadrant(${id}, 'niu')"><span class="dot blue"></span>不重要紧急</div>
+    <div class="quad-menu-item" onclick="setHlQuadrant(${id}, 'ninu')"><span class="dot gray"></span>不重要不紧急</div>
+    ${t.quadrant ? `<div class="quad-menu-item" onclick="setHlQuadrant(${id}, null)" style="color:#f56c6c;">✕ 清除标记</div>` : ''}
+  `;
+  const rect = e.currentTarget.getBoundingClientRect();
+  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  menu.style.left = (rect.left + window.scrollX) + 'px';
+  document.body.appendChild(menu);
+  hlQuadMenuOpen = menu;
+  setTimeout(() => { document.addEventListener('click', closeHlQuadMenu); }, 0);
+}
+function closeHlQuadMenu() {
+  if (hlQuadMenuOpen) { hlQuadMenuOpen.remove(); hlQuadMenuOpen = null; }
+  document.removeEventListener('click', closeHlQuadMenu);
+}
+function setHlQuadrant(id, quad) {
+  const t = hlTodos.find(x => x.id === id);
+  t.quadrant = quad;
+  saveHlTodos();
+  closeHlQuadMenu();
+  renderHlTodos();
+}
+
+// 健康待办分类管理
+function manageHlTodoCats() {
+  document.getElementById('qm-title').textContent = '📋 管理待办分类';
+  const render = () => {
+    document.getElementById('qm-body').innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="new-hlcat-icon" placeholder="图标" maxlength="2" style="width:60px;padding:8px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;text-align:center;">
+          <input type="text" id="new-hlcat-name" placeholder="分类名称" style="flex:1;padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="addHlTodoCat()">添加</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${hlTodoCats.map(c => `<span style="display:inline-flex;align-items:center;gap:6px;background:#f5f7fa;padding:6px 12px;border-radius:16px;font-size:13px;">${c.icon} ${escapeHtml(c.name)}<span onclick="delHlTodoCat('${c.id}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span></span>`).join('')}
+        </div>
+        ${hlTodoCats.length === 0 ? '<p style="color:#909399;font-size:13px;text-align:center;padding:10px 0;">还没有分类</p>' : ''}
+      </div>
+    `;
+  };
+  render();
+  document.getElementById('qm-confirm').textContent = '完成';
+  document.getElementById('qm-confirm').onclick = () => {
+    document.getElementById('quick-modal').classList.remove('show');
+    document.getElementById('qm-confirm').textContent = '确定';
+    renderHlTodos();
+  };
+  document.getElementById('quick-modal').classList.add('show');
+  window._renderHlTodoCatMgr = render;
+}
+function addHlTodoCat() {
+  const icon = document.getElementById('new-hlcat-icon').value.trim() || '📦';
+  const name = document.getElementById('new-hlcat-name').value.trim();
+  if (!name) return;
+  hlTodoCats.push({ id: 'hlcat_' + Date.now(), icon, name });
+  saveHlTodoCats();
+  window._renderHlTodoCatMgr && window._renderHlTodoCatMgr();
+}
+function delHlTodoCat(id) {
+  const cat = hlTodoCats.find(c => c.id === id);
+  if (!cat) return;
+  if (!confirm(`确定删除分类「${cat.name}」吗？\n该分类下的待办将移至「其他」。`)) return;
+  hlTodoCats = hlTodoCats.filter(c => c.id !== id);
+  saveHlTodoCats();
+  const otherCat = hlTodoCats.find(c => c.id === 'other') || hlTodoCats[0];
+  if (otherCat) {
+    hlTodos.forEach(t => { if ((t.category || 'other') === id) t.category = otherCat.id; });
+    saveHlTodos();
+  }
+  window._renderHlTodoCatMgr && window._renderHlTodoCatMgr();
 }
 
 // ========== 健康与生活 · 负债情况 ==========
@@ -9312,11 +9702,60 @@ const memoColors = [
   { name: '珊瑚橙', bg: '#ffe0b2', border: '#ffcc80' }
 ];
 const memoDefaultCats = ['工作', '生活', '学习', '购物', '其他'];
+let memoCats = JSON.parse(localStorage.getItem('hy_memo_cats') || 'null') || [...memoDefaultCats];
+function saveMemoCats() { localStorage.setItem('hy_memo_cats', JSON.stringify(memoCats)); }
 
 function getMemoCats() {
-  const cats = new Set(memoDefaultCats);
+  const cats = new Set(memoCats);
   memos.forEach(m => { if (m.category) cats.add(m.category); });
   return Array.from(cats);
+}
+
+function manageMemoCats() {
+  document.getElementById('qm-title').textContent = '📝 管理备忘录分类';
+  const render = () => {
+    document.getElementById('qm-body').innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="new-memo-cat" placeholder="输入新分类名称" style="flex:1;padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="addMemoCat()">添加</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${memoCats.map(c => `<span style="display:inline-flex;align-items:center;gap:6px;background:#f5f7fa;padding:6px 12px;border-radius:16px;font-size:13px;">${escapeHtml(c)}<span onclick="delMemoCat('${c.replace(/'/g, "\\'")}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span></span>`).join('')}
+        </div>
+        ${memoCats.length === 0 ? '<p style="color:#909399;font-size:13px;text-align:center;padding:10px 0;">还没有自定义分类</p>' : ''}
+      </div>
+    `;
+  };
+  render();
+  document.getElementById('qm-confirm').textContent = '完成';
+  document.getElementById('qm-confirm').onclick = () => {
+    document.getElementById('quick-modal').classList.remove('show');
+    document.getElementById('qm-confirm').textContent = '确定';
+    renderMemos();
+  };
+  document.getElementById('quick-modal').classList.add('show');
+  window._renderMemoCatMgr = render;
+}
+
+function addMemoCat() {
+  const input = document.getElementById('new-memo-cat');
+  const name = input.value.trim();
+  if (!name) return;
+  if (memoCats.includes(name)) { alert('该分类已存在'); return; }
+  memoCats.push(name);
+  saveMemoCats();
+  window._renderMemoCatMgr && window._renderMemoCatMgr();
+}
+
+function delMemoCat(name) {
+  if (!confirm(`确定删除分类「${name}」吗？\n已使用该分类的备忘将变为「未分类」。`)) return;
+  memoCats = memoCats.filter(c => c !== name);
+  saveMemoCats();
+  // 将使用该分类的备忘置为未分类
+  memos.forEach(m => { if (m.category === name) m.category = '未分类'; });
+  saveMemos();
+  window._renderMemoCatMgr && window._renderMemoCatMgr();
 }
 
 function fmtMemoDate(ts) {
@@ -9379,12 +9818,20 @@ function openMemoModal(id) {
   const m = id ? memos.find(x => x.id === id) : null;
   document.getElementById('qm-title').textContent = m ? '编辑备忘' : '新建备忘';
   const cats = getMemoCats();
+  const selCat = m ? m.category : (cats[0] || '其他');
   const colorOpts = memoColors.map((c, i) => `<label style="cursor:pointer;"><input type="radio" name="memo-color" value="${i}" ${(m ? m.colorIndex : 0) == i ? 'checked' : ''} style="display:none;"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:${c.bg};border:2px solid ${(m ? m.colorIndex : 0) == i ? '#667eea' : c.border};vertical-align:middle;"></span></label>`).join('');
   document.getElementById('qm-body').innerHTML = `
     <div class="form-row"><label>标题</label><input type="text" id="memo-title" placeholder="给备忘起个名字" value="${m ? escapeHtml(m.title || '') : ''}"></div>
     <div class="form-row"><label>内容</label><textarea id="memo-content" rows="6" placeholder="写点什么..." style="width:100%;padding:10px;border:1px solid #dcdfe6;border-radius:8px;resize:vertical;font-size:14px;">${m ? escapeHtml(m.content || '') : ''}</textarea></div>
     <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div><label>分类</label><input type="text" id="memo-category" list="memo-cat-list" placeholder="如：工作、生活" value="${m ? escapeHtml(m.category || '') : ''}"><datalist id="memo-cat-list">${cats.map(c => `<option value="${c}">`).join('')}</datalist></div>
+      <div><label>分类</label>
+        <div style="display:flex;gap:6px;">
+          <select id="memo-category" style="flex:1;padding:8px 10px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;background:#fff;">
+            ${cats.map(c => `<option value="${c}" ${c === selCat ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <a href="javascript:manageMemoCats()" style="font-size:12px;color:#667eea;margin-top:4px;display:inline-block;">⚙ 管理分类</a>
+      </div>
       <div><label>颜色</label><div style="display:flex;gap:10px;align-items:center;padding-top:6px;flex-wrap:wrap;">${colorOpts}</div></div>
     </div>
   `;
@@ -9398,6 +9845,8 @@ function saveMemo() {
   const category = document.getElementById('memo-category').value.trim() || '其他';
   const colorIndex = parseInt(document.querySelector('input[name="memo-color"]:checked')?.value || '0', 10);
   if (!title && !content) { alert('标题和内容不能都为空'); return; }
+  // 确保分类在自定义列表中
+  if (!memoCats.includes(category)) { memoCats.push(category); saveMemoCats(); }
   const now = Date.now();
   if (editingMemoId) {
     const m = memos.find(x => x.id === editingMemoId);
