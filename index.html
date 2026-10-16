@@ -1226,6 +1226,41 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
             </div>
           </div>
 
+          <!-- 题型分布 & 分值策略 -->
+          <div style="background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:1px solid #f0f0f0;">
+            <h4 style="font-size:14px;color:#262626;margin:0 0 12px;">📊 福建事业单位题型分布 &amp; 分值参考</h4>
+            <div style="overflow-x:auto;">
+            <table style="font-size:12px;">
+              <thead>
+                <tr><th>部分</th><th>题型模块</th><th>题量</th><th>分值</th><th>分数</th><th>参考时间</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>第一部分</td><td>公共基础知识</td><td>30</td><td>0.8</td><td>24</td><td rowspan="9" style="text-align:center;vertical-align:middle;font-weight:600;color:#667eea;">120分钟</td></tr>
+                <tr><td>第二部分</td><td>言语理解与表达</td><td>25</td><td>1</td><td>25</td></tr>
+                <tr><td rowspan="5">第三部分</td><td>事件排序</td><td>5</td><td>0.7</td><td>3.5</td></tr>
+                <tr><td>图形推理</td><td>5</td><td>0.9</td><td>4.5</td></tr>
+                <tr><td>类比推理</td><td>5</td><td>0.8</td><td>4</td></tr>
+                <tr><td>定义判断</td><td>5</td><td>0.9</td><td>4.5</td></tr>
+                <tr><td>逻辑判断</td><td>10</td><td>1</td><td>10</td></tr>
+                <tr><td rowspan="2">第四部分</td><td>数字推理</td><td>5</td><td>0.9</td><td>4.5</td></tr>
+                <tr><td>数学运算</td><td>10</td><td>1</td><td>10</td></tr>
+                <tr><td>第五部分</td><td>资料分析</td><td>10</td><td>1</td><td>10</td><td style="text-align:center;font-weight:600;color:#667eea;">120分钟</td></tr>
+                <tr style="font-weight:700;background:#f5f7fa;"><td colspan="2">合计</td><td>110</td><td>—</td><td>100</td><td style="text-align:center;">120分钟</td></tr>
+              </tbody>
+            </table>
+            </div>
+
+            <h4 style="font-size:14px;color:#262626;margin:20px 0 12px;">🎯 目标分数策略（点击切换目标分）</h4>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;" id="score-tabs">
+              <button class="btn btn-ghost btn-sm score-tab" data-score="70" onclick="switchScoreTab('70')">70+</button>
+              <button class="btn btn-ghost btn-sm score-tab" data-score="75" onclick="switchScoreTab('75')">75+</button>
+              <button class="btn btn-ghost btn-sm score-tab" data-score="80" onclick="switchScoreTab('80')">80+</button>
+              <button class="btn btn-ghost btn-sm score-tab" data-score="85" onclick="switchScoreTab('85')">85+</button>
+              <button class="btn btn-ghost btn-sm score-tab" data-score="90" onclick="switchScoreTab('90')">90+</button>
+            </div>
+            <div id="score-strategy-content" style="font-size:13px;line-height:2;color:#595959;"></div>
+          </div>
+
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div>
               <h4 style="font-size:13px;color:#262626;margin:0 0 10px;">🗓️ 三阶段备考时间轴</h4>
@@ -4653,12 +4688,88 @@ function renderDailyQuote() {
   if (el) el.textContent = getDailyQuote();
 }
 
+// ====== 事业编 · 目标分数策略 ======
+const scoreStrategies = {
+  '70': {
+    total: '78 题',
+    items: [
+      { name: '公基', detail: '22/30，得分 17.6 分', time: '21 分钟' },
+      { name: '言语理解', detail: '18/25，得分 18 分', time: '28 分钟' },
+      { name: '判断推理', detail: '合计 21.2 分：图形推理 4/5、事件排序 4/5、类比推理 4/5、定义判断 4/5、逻辑判断 8/10', time: '36 分钟' },
+      { name: '数量关系', detail: '合计 5.7 分：数字推理 3/5、数学运算 3/10', time: '20 分钟' },
+      { name: '资料分析', detail: '8/10，得分 8 分', time: '15 分钟' },
+    ]
+  },
+  '75': {
+    total: '83 题',
+    items: [
+      { name: '公基', detail: '23/30，得分 18.4 分', time: '21 分钟' },
+      { name: '言语理解', detail: '19/25，得分 19 分', time: '28 分钟' },
+      { name: '判断推理', detail: '合计 21.2 分：图形推理 4/5、事件排序 4/5、类比推理 4/5、定义判断 4/5、逻辑判断 8/10', time: '36 分钟' },
+      { name: '数量关系', detail: '合计 8.6 分：数字推理 4/5、数学运算 5/10', time: '20 分钟' },
+      { name: '资料分析', detail: '8/10，得分 8 分', time: '15 分钟' },
+    ]
+  },
+  '80': {
+    total: '88 题',
+    items: [
+      { name: '公基', detail: '24/30，得分 19.2 分', time: '21 分钟' },
+      { name: '言语理解', detail: '19/25，得分 19 分', time: '28 分钟' },
+      { name: '判断推理', detail: '合计 22.2 分：图形推理 4/5、事件排序 4/5、类比推理 4/5、定义判断 4/5、逻辑判断 9/10', time: '36 分钟' },
+      { name: '数量关系', detail: '合计 10.6 分：数字推理 4/5、数学运算 7/10', time: '20 分钟' },
+      { name: '资料分析', detail: '9/10，得分 9 分', time: '15 分钟' },
+    ]
+  },
+  '85': {
+    total: '93 题',
+    items: [
+      { name: '公基', detail: '24/30，得分 19.2 分', time: '21 分钟' },
+      { name: '言语理解', detail: '22/25，得分 22 分', time: '28 分钟' },
+      { name: '判断推理', detail: '合计 22.2 分：图形推理 4/5、事件排序 4/5、类比推理 4/5、定义判断 4/5、逻辑判断 9/10', time: '36 分钟' },
+      { name: '数量关系', detail: '合计 11.6 分：数字推理 4/5、数学运算 8/10', time: '20 分钟' },
+      { name: '资料分析', detail: '10/10，得分 10 分', time: '15 分钟' },
+    ]
+  },
+  '90': {
+    total: '100 题',
+    items: [
+      { name: '公基', detail: '26/30，得分 20.8 分', time: '21 分钟' },
+      { name: '言语理解', detail: '24/25，得分 24 分', time: '28 分钟' },
+      { name: '判断推理', detail: '合计 24.1 分：图形推理 4/5、事件排序 5/5、类比推理 5/5、定义判断 5/5、逻辑判断 9/10', time: '36 分钟' },
+      { name: '数量关系', detail: '合计 11.6 分：数字推理 4/5、数学运算 8/10', time: '20 分钟' },
+      { name: '资料分析', detail: '10/10，得分 10 分', time: '15 分钟' },
+    ]
+  },
+};
+
+function switchScoreTab(score) {
+  document.querySelectorAll('.score-tab').forEach(b => {
+    b.classList.toggle('btn-primary', b.dataset.score === score);
+    b.classList.toggle('btn-ghost', b.dataset.score !== score);
+  });
+  const s = scoreStrategies[score];
+  if (!s) return;
+  const html = `
+    <div style="font-weight:600;color:#262626;margin-bottom:8px;">《综合基础知识》${score}+ ｜ 至少做对 ${s.total}</div>
+    ${s.items.map((it, i) => `
+      <div style="margin-bottom:6px;">
+        <span style="display:inline-block;min-width:22px;font-weight:600;color:#667eea;">${i + 1}.</span>
+        <span style="font-weight:600;">${it.name}</span>：${it.detail}
+        <span style="color:#909399;font-size:12px;margin-left:6px;">（建议用时 ${it.time}）</span>
+      </div>
+    `).join('')}
+  `;
+  const el = document.getElementById('score-strategy-content');
+  if (el) el.innerHTML = html;
+}
+
 function renderExamPrep() {
   epCheckToday();
   renderEpFocus();
   renderEpRest();
   renderExamCountdown();
   renderDailyQuote();
+  switchScoreTab('70');
   switchEpTab('courses');
 }
 
