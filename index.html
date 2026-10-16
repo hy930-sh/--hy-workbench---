@@ -134,6 +134,22 @@
   .hltodo-del { cursor: pointer; color: #c0c4cc; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
   .hltodo-del:hover { color: #f56c6c; background: #fef0f0; }
 
+  /* 备忘录 */
+  .memo-card { border-radius: 12px; padding: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); transition: transform 0.15s, box-shadow 0.15s; cursor: default; display: flex; flex-direction: column; min-height: 140px; }
+  .memo-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+  .memo-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .memo-cat-tag { font-size: 11px; background: rgba(255,255,255,0.7); padding: 2px 8px; border-radius: 10px; color: #606266; }
+  .memo-pin { cursor: pointer; font-size: 14px; opacity: 0.4; transition: opacity 0.2s; }
+  .memo-pin:hover { opacity: 1; }
+  .memo-pin.pinned { opacity: 1; }
+  .memo-title { font-size: 15px; font-weight: 600; color: #303133; margin-bottom: 6px; word-break: break-word; }
+  .memo-content { font-size: 13px; color: #606266; line-height: 1.5; flex: 1; word-break: break-word; white-space: pre-wrap; }
+  .memo-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(0,0,0,0.1); }
+  .memo-date { font-size: 11px; color: #909399; }
+  .memo-actions { display: flex; gap: 6px; }
+  .memo-action { cursor: pointer; color: #909399; font-size: 13px; padding: 2px 6px; border-radius: 4px; transition: all 0.2s; }
+  .memo-action:hover { color: #667eea; background: rgba(255,255,255,0.6); }
+
   /* 负债情况 */
   .debt-item { padding: 14px 0; border-bottom: 1px solid #f0f0f0; }
   .debt-item:last-child { border-bottom: none; }
@@ -1394,6 +1410,7 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="password" onclick="switchHlTab('password')">🔐 密码管理</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="expiry" onclick="switchHlTab('expiry')">⏳ 效期提醒</button>
             <button class="btn btn-ghost btn-sm hl-tab" data-tab="gift" onclick="switchHlTab('gift')">🤝 人情往来</button>
+            <button class="btn btn-ghost btn-sm hl-tab" data-tab="memo" onclick="switchHlTab('memo')">📝 备忘录</button>
           </div>
         </div>
       </div>
@@ -2028,6 +2045,27 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
         <div class="panel">
           <div class="panel-header"><h3>🤝 人情往来记录</h3><span id="gift-hint" style="font-size:12px;color:#909399;"></span></div>
           <div class="panel-body" id="gift-list" style="padding:12px 20px;"></div>
+        </div>
+      </div>
+
+      <!-- 备忘录 模块 -->
+      <div id="hl-memo-panel" class="hl-panel" style="display:none;">
+        <div class="panel" style="margin-bottom:16px;">
+          <div class="panel-body" style="padding:14px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <input type="text" id="memo-search" placeholder="🔍 搜索标题或内容..." oninput="renderMemos()" style="padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:13px;min-width:200px;">
+                <select id="memo-cat-filter" onchange="renderMemos()" style="padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:13px;background:#fff;">
+                  <option value="all">全部分类</option>
+                </select>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="openMemoModal()">+ 新建备忘</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><h3>📝 备忘录</h3><span id="memo-count" style="font-size:12px;color:#909399;"></span></div>
+          <div class="panel-body" id="memo-list" style="padding:16px 20px;"></div>
         </div>
       </div>
     </div>
@@ -4787,6 +4825,7 @@ function switchHlTab(tab) {
   document.getElementById('hl-password-panel').style.display = tab === 'password' ? '' : 'none';
   document.getElementById('hl-expiry-panel').style.display = tab === 'expiry' ? '' : 'none';
   document.getElementById('hl-gift-panel').style.display = tab === 'gift' ? '' : 'none';
+  document.getElementById('hl-memo-panel').style.display = tab === 'memo' ? '' : 'none';
   if (tab === 'todo') renderHlTodos();
   if (tab === 'habit') renderHabitCalendars();
   if (tab === 'saving') renderSavings();
@@ -4797,6 +4836,7 @@ function switchHlTab(tab) {
   if (tab === 'password') renderPasswords();
   if (tab === 'expiry') renderExpiry();
   if (tab === 'gift') renderGifts();
+  if (tab === 'memo') renderMemos();
 }
 
 // ========== 健康与生活 · 我的资产 ==========
@@ -9235,6 +9275,134 @@ function galleryNav(delta) {
 }
 function galleryJump(i) { galleryIndex = i; document.getElementById('gallery-title').textContent = `📷 照片 (${i + 1}/${galleryPhotos.length})`; renderGalleryMain(); renderGalleryThumbs(); }
 function closeGallery() { document.getElementById('fp-gallery').classList.remove('show'); }
+
+// ========== 健康与生活 · 备忘录 ==========
+let memos = JSON.parse(localStorage.getItem('hy_memos') || '[]');
+function saveMemos() { localStorage.setItem('hy_memos', JSON.stringify(memos)); }
+let editingMemoId = null;
+
+const memoColors = [
+  { name: '默认黄', bg: '#fff9c4', border: '#f0e68c' },
+  { name: '薄荷绿', bg: '#c8e6c9', border: '#a5d6a7' },
+  { name: '天空蓝', bg: '#bbdefb', border: '#90caf9' },
+  { name: '樱花粉', bg: '#f8bbd0', border: '#f48fb1' },
+  { name: '丁香紫', bg: '#e1bee7', border: '#ce93d8' },
+  { name: '珊瑚橙', bg: '#ffe0b2', border: '#ffcc80' }
+];
+const memoDefaultCats = ['工作', '生活', '学习', '购物', '其他'];
+
+function getMemoCats() {
+  const cats = new Set(memoDefaultCats);
+  memos.forEach(m => { if (m.category) cats.add(m.category); });
+  return Array.from(cats);
+}
+
+function fmtMemoDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderMemos() {
+  const list = document.getElementById('memo-list');
+  const countEl = document.getElementById('memo-count');
+  const catFilter = document.getElementById('memo-cat-filter');
+  if (!list) return;
+  // 更新分类筛选
+  const cats = getMemoCats();
+  const curCat = catFilter.value;
+  catFilter.innerHTML = '<option value="all">全部分类</option>' + cats.map(c => `<option value="${c}" ${c === curCat ? 'selected' : ''}>${c}</option>`).join('');
+  // 搜索 + 筛选
+  const kw = (document.getElementById('memo-search')?.value || '').toLowerCase().trim();
+  const catVal = catFilter.value;
+  let filtered = memos.filter(m => {
+    const matchKw = !kw || (m.title || '').toLowerCase().includes(kw) || (m.content || '').toLowerCase().includes(kw);
+    const matchCat = catVal === 'all' || m.category === catVal;
+    return matchKw && matchCat;
+  });
+  // 排序：置顶在前，其余按更新时间倒序
+  filtered.sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
+  });
+  countEl.textContent = `共 ${filtered.length} 条`;
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">📝</div><p>还没有备忘，点击右上角「新建备忘」</p></div>';
+    return;
+  }
+  list.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;">${filtered.map(m => {
+    const color = memoColors[m.colorIndex || 0] || memoColors[0];
+    const preview = (m.content || '').slice(0, 60);
+    return `<div class="memo-card" style="background:${color.bg};border:1px solid ${color.border};" ondblclick="openMemoModal(${m.id})">
+      <div class="memo-card-head">
+        <span class="memo-cat-tag">${escapeHtml(m.category || '未分类')}</span>
+        <span class="memo-pin ${m.pinned ? 'pinned' : ''}" onclick="toggleMemoPin(${m.id})" title="${m.pinned ? '取消置顶' : '置顶'}">📌</span>
+      </div>
+      <div class="memo-title">${escapeHtml(m.title || '无标题')}</div>
+      <div class="memo-content">${escapeHtml(preview)}${(m.content || '').length > 60 ? '...' : ''}</div>
+      <div class="memo-foot">
+        <span class="memo-date">${fmtMemoDate(m.updatedAt || m.createdAt)}</span>
+        <div class="memo-actions">
+          <span class="memo-action" onclick="openMemoModal(${m.id})" title="编辑">✎</span>
+          <span class="memo-action" onclick="deleteMemo(${m.id})" title="删除">✕</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openMemoModal(id) {
+  editingMemoId = id || null;
+  const m = id ? memos.find(x => x.id === id) : null;
+  document.getElementById('qm-title').textContent = m ? '编辑备忘' : '新建备忘';
+  const cats = getMemoCats();
+  const colorOpts = memoColors.map((c, i) => `<label style="cursor:pointer;"><input type="radio" name="memo-color" value="${i}" ${(m ? m.colorIndex : 0) == i ? 'checked' : ''} style="display:none;"><span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:${c.bg};border:2px solid ${(m ? m.colorIndex : 0) == i ? '#667eea' : c.border};vertical-align:middle;"></span></label>`).join('');
+  document.getElementById('qm-body').innerHTML = `
+    <div class="form-row"><label>标题</label><input type="text" id="memo-title" placeholder="给备忘起个名字" value="${m ? escapeHtml(m.title || '') : ''}"></div>
+    <div class="form-row"><label>内容</label><textarea id="memo-content" rows="6" placeholder="写点什么..." style="width:100%;padding:10px;border:1px solid #dcdfe6;border-radius:8px;resize:vertical;font-size:14px;">${m ? escapeHtml(m.content || '') : ''}</textarea></div>
+    <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label>分类</label><input type="text" id="memo-category" list="memo-cat-list" placeholder="如：工作、生活" value="${m ? escapeHtml(m.category || '') : ''}"><datalist id="memo-cat-list">${cats.map(c => `<option value="${c}">`).join('')}</datalist></div>
+      <div><label>颜色</label><div style="display:flex;gap:10px;align-items:center;padding-top:6px;flex-wrap:wrap;">${colorOpts}</div></div>
+    </div>
+  `;
+  document.getElementById('qm-confirm').onclick = saveMemo;
+  document.getElementById('quick-modal').classList.add('show');
+}
+
+function saveMemo() {
+  const title = document.getElementById('memo-title').value.trim();
+  const content = document.getElementById('memo-content').value.trim();
+  const category = document.getElementById('memo-category').value.trim() || '其他';
+  const colorIndex = parseInt(document.querySelector('input[name="memo-color"]:checked')?.value || '0', 10);
+  if (!title && !content) { alert('标题和内容不能都为空'); return; }
+  const now = Date.now();
+  if (editingMemoId) {
+    const m = memos.find(x => x.id === editingMemoId);
+    if (m) { Object.assign(m, { title, content, category, colorIndex, updatedAt: now }); }
+  } else {
+    memos.push({ id: now, title, content, category, colorIndex, pinned: false, createdAt: now, updatedAt: now });
+  }
+  saveMemos();
+  document.getElementById('quick-modal').classList.remove('show');
+  renderMemos();
+}
+
+function toggleMemoPin(id) {
+  const m = memos.find(x => x.id === id);
+  if (!m) return;
+  m.pinned = !m.pinned;
+  m.updatedAt = Date.now();
+  saveMemos();
+  renderMemos();
+}
+
+function deleteMemo(id) {
+  if (!confirm('确定删除这条备忘吗？')) return;
+  memos = memos.filter(m => m.id !== id);
+  saveMemos();
+  renderMemos();
+}
 
 // 点击外部关闭城市列表
 document.addEventListener('click', (e) => {
