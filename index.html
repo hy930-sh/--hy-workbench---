@@ -10126,6 +10126,20 @@ if (!Array.isArray(helpMembers) || helpMembers.length === 0) {
 }
 function saveHelpMembers() { localStorage.setItem('hy_help_members', JSON.stringify(helpMembers)); }
 
+// 事项类型（可选择，后续可增加）
+const helpDefaultTaskTypes = ['晒衣服', '拿快递', '倒垃圾', '拖地', '洗碗', '买菜', '做饭', '浇花'];
+let helpTaskTypes = JSON.parse(localStorage.getItem('hy_help_task_types') || 'null');
+if (!Array.isArray(helpTaskTypes) || helpTaskTypes.length === 0) {
+  helpTaskTypes = [...helpDefaultTaskTypes];
+}
+function saveHelpTaskTypes() { localStorage.setItem('hy_help_task_types', JSON.stringify(helpTaskTypes)); }
+// 获取所有事项类型（预设 + 历史记录中出现过的）
+function getHelpTaskTypes() {
+  const set = new Set(helpTaskTypes);
+  helpTasks.forEach(t => { if (t.task) set.add(t.task); });
+  return Array.from(set);
+}
+
 let helpTasks = JSON.parse(localStorage.getItem('hy_help_tasks') || '[]');
 function saveHelpTasks() { localStorage.setItem('hy_help_tasks', JSON.stringify(helpTasks)); }
 
@@ -10141,6 +10155,15 @@ function helpStats() {
   helpTasks.forEach(t => {
     const doers = Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : []);
     doers.forEach(d => { if (counts[d] !== undefined) counts[d]++; });
+  });
+  return counts;
+}
+
+// 统计：每个事项出现了多少次
+function helpTaskStats() {
+  const counts = {};
+  helpTasks.forEach(t => {
+    if (t.task) counts[t.task] = (counts[t.task] || 0) + 1;
   });
   return counts;
 }
@@ -10161,10 +10184,28 @@ function renderHelpTasks() {
   Object.keys(counts).forEach(m => {
     statsHtml += `<div class="stat-card" style="padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#f5f7fa;"><div class="label" style="font-size:12px;color:#909399;">${escapeHtml(m)} 干活</div><div class="value" style="font-size:20px;font-weight:bold;color:#303133;">${counts[m]}<span class="unit" style="font-size:12px;color:#909399;font-weight:normal;">次</span></div></div>`;
   });
+  // 每个事项的单独统计
+  const taskCounts = helpTaskStats();
+  const taskStatEntries = Object.entries(taskCounts).sort((a, b) => b[1] - a[1]);
+  if (taskStatEntries.length > 0) {
+    statsHtml += `<div style="flex-basis:100%;margin-top:4px;padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#fafbfc;">
+      <div style="font-size:12px;color:#909399;margin-bottom:6px;">📊 事项统计</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${taskStatEntries.map(([name, cnt]) => `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;padding:4px 10px;border-radius:12px;font-size:12px;border:1px solid #e4e7ed;">${escapeHtml(name)} <b style="color:#667eea;">${cnt}</b>次</span>`).join('')}
+      </div>
+    </div>`;
+  }
   statsEl.innerHTML = statsHtml;
 
-  // 列表：按日期倒序
-  const list = [...helpTasks].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id);
+  // 列表：按日期倒序（无日期的排最后）
+  const list = [...helpTasks].sort((a, b) => {
+    const da = a.date || '';
+    const db = b.date || '';
+    if (!da && !db) return b.id - a.id;
+    if (!da) return 1;
+    if (!db) return -1;
+    return db.localeCompare(da) || b.id - a.id;
+  });
   if (list.length === 0) {
     listEl.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">🤝</div><p>还没有互助记录<br>点击右上角「+ 记录小事」开始记录</p></div>';
     return;
@@ -10176,6 +10217,7 @@ function renderHelpTasks() {
     const doerText = doers.length ? doers.map(d => escapeHtml(d)).join('、') : '—';
     const helped = originals.length > 0 && doers.length > 0 &&
       !(originals.length === doers.length && originals.every((o, i) => o === doers[i]));
+    const dateText = t.date ? escapeHtml(t.date) : '<span style="color:#c0c4cc;">未填时间</span>';
     return `<div class="gift-item" style="padding:12px 16px;">
       <div class="gift-icon" style="background:${helped ? '#e6f7ff' : '#f6ffed'};color:${helped ? '#1890ff' : '#52c41a'};">${helped ? '🤝' : '✅'}</div>
       <div class="gift-body" style="flex:1;">
@@ -10184,8 +10226,9 @@ function renderHelpTasks() {
           本应：<span style="color:#909399;">${origText}</span> &nbsp;|&nbsp; 实际：<span style="color:#52c41a;font-weight:500;">${doerText}</span>
         </div>
       </div>
-      <div class="gift-date" style="font-size:12px;color:#909399;">${(t.date || '').slice(5)}</div>
-      <span class="gift-del" onclick="deleteHelpTask(${t.id})">✕</span>
+      <div class="gift-date" style="font-size:12px;color:#909399;white-space:nowrap;">${dateText}</div>
+      <span class="gift-del" onclick="openHelpTaskModal(${t.id})" title="编辑" style="cursor:pointer;color:#667eea;">✎</span>
+      <span class="gift-del" onclick="deleteHelpTask(${t.id})" title="删除">✕</span>
     </div>`;
   }).join('');
 }
@@ -10236,14 +10279,65 @@ function delHelpMember(name) {
   window._renderHelpMemberMgr && window._renderHelpMemberMgr();
 }
 
+// 事项类型管理
+function manageHelpTaskTypes() {
+  document.getElementById('qm-title').textContent = '⚙ 事项类型管理';
+  const render = () => {
+    const types = getHelpTaskTypes();
+    document.getElementById('qm-body').innerHTML = `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="new-help-task-type" placeholder="输入事项名称，如：晒被子" style="flex:1;padding:8px 12px;border:1px solid #dcdfe6;border-radius:6px;font-size:14px;">
+          <button class="btn btn-primary btn-sm" onclick="addHelpTaskType()">添加</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${types.map(tp => {
+            const isCustom = helpTaskTypes.includes(tp);
+            return `<span style="display:inline-flex;align-items:center;gap:6px;background:${isCustom ? '#f5f7fa' : '#fff7e6'};padding:6px 12px;border-radius:16px;font-size:13px;border:1px solid ${isCustom ? '#e4e7ed' : '#ffd591'};">${escapeHtml(tp)}${isCustom ? `<span onclick="delHelpTaskType('${tp.replace(/'/g, "\\'")}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span>` : ''}</span>`;
+          }).join('')}
+        </div>
+        ${types.length === 0 ? '<p style="color:#909399;font-size:13px;text-align:center;padding:10px 0;">还没有事项类型</p>' : ''}
+        <p style="font-size:11px;color:#909399;margin-top:10px;">黄色为系统预设事项，不可删除；白色为自定义事项，可删除。<br>记录时输入的新事项会自动加入列表。</p>
+      </div>
+    `;
+  };
+  render();
+  document.getElementById('qm-confirm').textContent = '完成';
+  document.getElementById('qm-confirm').onclick = () => {
+    document.getElementById('quick-modal').classList.remove('show');
+    document.getElementById('qm-confirm').textContent = '确定';
+    renderHelpTasks();
+  };
+  document.getElementById('quick-modal').classList.add('show');
+  window._renderHelpTaskTypeMgr = render;
+}
+
+function addHelpTaskType() {
+  const input = document.getElementById('new-help-task-type');
+  const name = input.value.trim();
+  if (!name) return;
+  const types = getHelpTaskTypes();
+  if (types.includes(name)) { alert('该事项已存在'); return; }
+  helpTaskTypes.push(name);
+  saveHelpTaskTypes();
+  window._renderHelpTaskTypeMgr && window._renderHelpTaskTypeMgr();
+}
+
+function delHelpTaskType(name) {
+  if (!confirm(`确定删除事项「${name}」吗？\n已使用该事项的记录仍会保留。`)) return;
+  helpTaskTypes = helpTaskTypes.filter(t => t !== name);
+  saveHelpTaskTypes();
+  window._renderHelpTaskTypeMgr && window._renderHelpTaskTypeMgr();
+}
+
 // 新增/编辑小事
 let editingHelpTaskId = null;
 function openHelpTaskModal(id) {
   editingHelpTaskId = id || null;
   const t = id ? helpTasks.find(x => x.id === id) : null;
-  const today = helpTodayStr();
   const origList = t ? (Array.isArray(t.original) ? t.original : (t.original ? [t.original] : [])) : [];
   const doerList = t ? (Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : [])) : [];
+  const types = getHelpTaskTypes();
 
   const memberCheckboxes = (field, selected) => helpMembers.map(m => `
     <label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid #dcdfe6;border-radius:16px;cursor:pointer;font-size:13px;background:${selected.includes(m) ? '#e6f7ff' : '#fff'};border-color:${selected.includes(m) ? '#1890ff' : '#dcdfe6'};">
@@ -10251,15 +10345,18 @@ function openHelpTaskModal(id) {
     </label>
   `).join('');
 
+  const datalistOpts = types.map(tp => `<option value="${escapeHtml(tp)}">`).join('');
+
   const body = `
     <div style="display:flex;flex-direction:column;gap:12px;">
       <div>
-        <label style="font-size:12px;color:#606266;">日期</label>
-        <input type="date" id="help-date" class="input" style="width:100%;margin-top:4px;" value="${t ? (t.date || today) : today}">
+        <label style="font-size:12px;color:#606266;">日期（可不填）</label>
+        <input type="date" id="help-date" class="input" style="width:100%;margin-top:4px;" value="${t ? (t.date || '') : ''}">
       </div>
       <div>
-        <label style="font-size:12px;color:#606266;">事情 *</label>
-        <input type="text" id="help-task" class="input" style="width:100%;margin-top:4px;" placeholder="如：晒衣服 / 拿快递 / 倒垃圾" value="${t ? escapeHtml(t.task || '') : ''}">
+        <label style="font-size:12px;color:#606266;">事情 * <a href="javascript:manageHelpTaskTypes()" style="font-size:11px;color:#667eea;float:right;">⚙ 管理事项</a></label>
+        <input type="text" id="help-task" class="input" list="help-task-types-list" style="width:100%;margin-top:4px;" placeholder="选择或输入事项" value="${t ? escapeHtml(t.task || '') : ''}">
+        <datalist id="help-task-types-list">${datalistOpts}</datalist>
       </div>
       <div>
         <label style="font-size:12px;color:#606266;">本应谁干</label>
@@ -10284,13 +10381,19 @@ function openHelpTaskModal(id) {
 }
 
 function saveHelpTask() {
-  const date = document.getElementById('help-date').value || helpTodayStr();
+  const date = document.getElementById('help-date').value.trim();
   const task = document.getElementById('help-task').value.trim();
   const original = Array.from(document.querySelectorAll('input[name="help-original"]:checked')).map(c => c.value);
   const doers = Array.from(document.querySelectorAll('input[name="help-doer"]:checked')).map(c => c.value);
 
   if (!task) { alert('请填写事情'); return; }
   if (doers.length === 0) { alert('请选择实际谁干了'); return; }
+
+  // 新事项自动加入类型列表
+  if (task && !helpTaskTypes.includes(task) && !helpDefaultTaskTypes.includes(task)) {
+    helpTaskTypes.push(task);
+    saveHelpTaskTypes();
+  }
 
   if (editingHelpTaskId) {
     const t = helpTasks.find(x => x.id === editingHelpTaskId);
