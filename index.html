@@ -10140,6 +10140,32 @@ function getHelpTaskTypes() {
   return Array.from(set);
 }
 
+// 事项可爱小图标（按关键词匹配，未命中给默认图标）
+const helpTaskIconRules = [
+  { kw: ['被子', '床单', '褥'], icon: '🛏️' },
+  { kw: ['衣', '裤', '晾', '晒', '洗衣', '袜'], icon: '👕' },
+  { kw: ['快递', '包裹', '取件', '寄'], icon: '📦' },
+  { kw: ['垃圾', '倒', '扔'], icon: '🗑️' },
+  { kw: ['拖地', '扫地', '打扫', '擦地', '拖把', '卫生'], icon: '🧹' },
+  { kw: ['洗碗', '餐具', '盘子', '筷', '收拾'], icon: '🍽️' },
+  { kw: ['买菜', '采购', '超市', '购物'], icon: '🛒' },
+  { kw: ['做饭', '煮饭', '炒菜', '烧菜', '烹饪', '早餐', '晚餐', '下厨'], icon: '🍳' },
+  { kw: ['浇花', '浇水', '花', '植物', '绿植'], icon: '🌸' },
+  { kw: ['遛狗', '狗'], icon: '🐕' },
+  { kw: ['喂猫', '铲屎', '猫'], icon: '🐱' },
+  { kw: ['缴费', '水电', '燃气', '交费', '充电', '水费', '电费'], icon: '💡' },
+  { kw: ['药'], icon: '💊' },
+  { kw: ['接娃', '送娃', '上学', '放学', '孩子', '宝宝'], icon: '🧸' },
+  { kw: ['洗车', '车'], icon: '🚗' }
+];
+function helpTaskIcon(name) {
+  if (!name) return '🧺';
+  for (const r of helpTaskIconRules) {
+    if (r.kw.some(kw => name.includes(kw))) return r.icon;
+  }
+  return '✨';
+}
+
 let helpTasks = JSON.parse(localStorage.getItem('hy_help_tasks') || '[]');
 function saveHelpTasks() { localStorage.setItem('hy_help_tasks', JSON.stringify(helpTasks)); }
 
@@ -10159,13 +10185,16 @@ function helpStats() {
   return counts;
 }
 
-// 统计：每个事项出现了多少次
-function helpTaskStats() {
-  const counts = {};
+// 统计：每个事项分别被每位成员做了几次
+function helpTaskDoerStats() {
+  const map = {};
   helpTasks.forEach(t => {
-    if (t.task) counts[t.task] = (counts[t.task] || 0) + 1;
+    const name = t.task || '未命名';
+    if (!map[name]) map[name] = {};
+    const doers = Array.isArray(t.doers) ? t.doers : (t.doers ? [t.doers] : []);
+    doers.forEach(d => { map[name][d] = (map[name][d] || 0) + 1; });
   });
-  return counts;
+  return map;
 }
 
 function renderHelpTasks() {
@@ -10184,14 +10213,35 @@ function renderHelpTasks() {
   Object.keys(counts).forEach(m => {
     statsHtml += `<div class="stat-card" style="padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#f5f7fa;"><div class="label" style="font-size:12px;color:#909399;">${escapeHtml(m)} 干活</div><div class="value" style="font-size:20px;font-weight:bold;color:#303133;">${counts[m]}<span class="unit" style="font-size:12px;color:#909399;font-weight:normal;">次</span></div></div>`;
   });
-  // 每个事项的单独统计
-  const taskCounts = helpTaskStats();
-  const taskStatEntries = Object.entries(taskCounts).sort((a, b) => b[1] - a[1]);
-  if (taskStatEntries.length > 0) {
-    statsHtml += `<div style="flex-basis:100%;margin-top:4px;padding:10px 14px;border:1px solid #ebeef5;border-radius:8px;background:#fafbfc;">
-      <div style="font-size:12px;color:#909399;margin-bottom:6px;">📊 事项统计</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;">
-        ${taskStatEntries.map(([name, cnt]) => `<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;padding:4px 10px;border-radius:12px;font-size:12px;border:1px solid #e4e7ed;">${escapeHtml(name)} <b style="color:#667eea;">${cnt}</b>次</span>`).join('')}
+  // 每个事项 · 谁做了几次（按事项分行，按成员分列）
+  const doerStats = helpTaskDoerStats();
+  const taskNames = Object.keys(doerStats);
+  if (taskNames.length > 0) {
+    const total = o => Object.values(doerStats[o]).reduce((s, c) => s + c, 0);
+    taskNames.sort((a, b) => total(b) - total(a));
+    // 列：预设成员优先，再补历史出现过的成员
+    const cols = [...helpMembers];
+    taskNames.forEach(n => Object.keys(doerStats[n]).forEach(m => { if (!cols.includes(m)) cols.push(m); }));
+    statsHtml += `<div style="flex-basis:100%;margin-top:4px;padding:12px 14px;border:1px solid #ebeef5;border-radius:8px;background:#fafbfc;">
+      <div style="font-size:12px;color:#909399;margin-bottom:8px;">📊 各事项 · 谁做了几次</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:6px 8px;color:#909399;font-weight:normal;border-bottom:1px solid #ebeef5;">事项</th>
+              ${cols.map(m => `<th style="text-align:center;padding:6px 8px;color:#909399;font-weight:normal;border-bottom:1px solid #ebeef5;">${escapeHtml(m)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${taskNames.map(n => `<tr>
+              <td style="padding:7px 8px;color:#303133;white-space:nowrap;">${helpTaskIcon(n)} ${escapeHtml(n)}</td>
+              ${cols.map(m => {
+                const c = doerStats[n][m] || 0;
+                return `<td style="text-align:center;padding:7px 8px;color:${c ? '#303133' : '#c0c4cc'};${c ? 'font-weight:600;' : ''}">${c || '·'}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
       </div>
     </div>`;
   }
@@ -10221,7 +10271,7 @@ function renderHelpTasks() {
     return `<div class="gift-item" style="padding:12px 16px;">
       <div class="gift-icon" style="background:${helped ? '#e6f7ff' : '#f6ffed'};color:${helped ? '#1890ff' : '#52c41a'};">${helped ? '🤝' : '✅'}</div>
       <div class="gift-body" style="flex:1;">
-        <div class="gift-name" style="font-weight:600;font-size:14px;">${escapeHtml(t.task || '未命名')}</div>
+        <div class="gift-name" style="font-weight:600;font-size:14px;">${helpTaskIcon(t.task)} ${escapeHtml(t.task || '未命名')}</div>
         <div class="gift-event" style="font-size:12px;color:#606266;margin-top:2px;">
           本应：<span style="color:#909399;">${origText}</span> &nbsp;|&nbsp; 实际：<span style="color:#52c41a;font-weight:500;">${doerText}</span>
         </div>
@@ -10293,7 +10343,7 @@ function manageHelpTaskTypes() {
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
           ${types.map(tp => {
             const isCustom = helpTaskTypes.includes(tp);
-            return `<span style="display:inline-flex;align-items:center;gap:6px;background:${isCustom ? '#f5f7fa' : '#fff7e6'};padding:6px 12px;border-radius:16px;font-size:13px;border:1px solid ${isCustom ? '#e4e7ed' : '#ffd591'};">${escapeHtml(tp)}${isCustom ? `<span onclick="delHelpTaskType('${tp.replace(/'/g, "\\'")}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span>` : ''}</span>`;
+            return `<span style="display:inline-flex;align-items:center;gap:6px;background:${isCustom ? '#f5f7fa' : '#fff7e6'};padding:6px 12px;border-radius:16px;font-size:13px;border:1px solid ${isCustom ? '#e4e7ed' : '#ffd591'};">${helpTaskIcon(tp)} ${escapeHtml(tp)}${isCustom ? `<span onclick="delHelpTaskType('${tp.replace(/'/g, "\\'")}')" style="cursor:pointer;color:#f56c6c;font-weight:bold;">✕</span>` : ''}</span>`;
           }).join('')}
         </div>
         ${types.length === 0 ? '<p style="color:#909399;font-size:13px;text-align:center;padding:10px 0;">还没有事项类型</p>' : ''}
@@ -10345,7 +10395,7 @@ function openHelpTaskModal(id) {
     </label>
   `).join('');
 
-  const datalistOpts = types.map(tp => `<option value="${escapeHtml(tp)}">`).join('');
+  const datalistOpts = types.map(tp => `<option value="${escapeHtml(tp)}">${helpTaskIcon(tp)} ${escapeHtml(tp)}</option>`).join('');
 
   const body = `
     <div style="display:flex;flex-direction:column;gap:12px;">
