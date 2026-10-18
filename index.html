@@ -330,6 +330,8 @@
   .gift-date { font-size:11px;color:#c0c4cc;white-space:nowrap; }
   .gift-del { cursor:pointer;color:#c0c4cc;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0; }
   .gift-del:hover { color:#f56c6c;background:#fef0f0; }
+  .gift-edit { cursor:pointer;color:#c0c4cc;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0; }
+  .gift-edit:hover { color:#667eea;background:#eef1fd; }
   .gift-link { display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#667eea;background:rgba(102,126,234,0.08);padding:2px 8px;border-radius:10px;margin-top:4px; }
   .asset-filter-chip { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 14px; font-size: 12px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); background: #fff; color: #606266; transition: all 0.15s; }
   .asset-filter-chip:hover { border-color: #667eea; color: #667eea; }
@@ -9254,7 +9256,8 @@ function renderGifts() {
         ${linkHtml}
       </div>
       <div class="gift-amount ${isOut ? 'out' : 'in'}">${amountText}</div>
-      <div class="gift-date">${(g.date || '').slice(5)}</div>
+      <div class="gift-date">${g.date ? escapeHtml(g.date) : '未填时间'}</div>
+      <span class="gift-edit" onclick="openGiftModal(${g.id})" title="编辑">✎</span>
       <span class="gift-del" onclick="deleteGift(${g.id})">✕</span>
     </div>`;
   }).join('');
@@ -9300,8 +9303,8 @@ function openGiftModal(id) {
         <input type="text" id="gift-item-name" class="input" style="width:100%;margin-top:4px;" placeholder="如：银镯子" value="${g ? escapeHtml(g.itemName || '') : ''}">
       </div>
       <div>
-        <label style="font-size:12px;color:#606266;">日期</label>
-        <input type="date" id="gift-date" class="input" style="width:100%;margin-top:4px;" value="${g ? (g.date || today) : today}">
+        <label style="font-size:12px;color:#606266;">日期（忘记可留空）</label>
+        <input type="date" id="gift-date" class="input" style="width:100%;margin-top:4px;" value="${g ? (g.date || '') : today}">
       </div>
       <div>
         <label style="font-size:12px;color:#606266;">备注</label>
@@ -9324,7 +9327,7 @@ function confirmGift() {
   const amountStr = document.getElementById('gift-amount').value;
   const amount = amountStr ? parseFloat(amountStr) : 0;
   const itemName = document.getElementById('gift-item-name').value.trim();
-  const date = document.getElementById('gift-date').value || giftTodayStr();
+  const date = document.getElementById('gift-date').value.trim();
   const note = document.getElementById('gift-note').value.trim();
 
   if (!name) { alert('请输入姓名'); return; }
