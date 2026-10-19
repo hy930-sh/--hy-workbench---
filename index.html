@@ -327,11 +327,11 @@
   .gift-amount { font-size:15px;font-weight:600;white-space:nowrap; }
   .gift-amount.out { color:#f5222d; }
   .gift-amount.in { color:#52c41a; }
-  .gift-date { font-size:11px;color:#c0c4cc;white-space:nowrap; }
+  .gift-date { font-size:12px;color:#909399;white-space:nowrap; }
   .gift-del { cursor:pointer;color:#c0c4cc;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0; }
   .gift-del:hover { color:#f56c6c;background:#fef0f0; }
-  .gift-edit { cursor:pointer;color:#c0c4cc;font-size:14px;padding:2px 6px;border-radius:4px;flex-shrink:0; }
-  .gift-edit:hover { color:#667eea;background:#eef1fd; }
+  .gift-edit { cursor:pointer;color:#667eea;font-size:12px;padding:2px 8px;border-radius:4px;flex-shrink:0;background:rgba(102,126,234,0.08); }
+  .gift-edit:hover { color:#fff;background:#667eea; }
   .gift-link { display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#667eea;background:rgba(102,126,234,0.08);padding:2px 8px;border-radius:10px;margin-top:4px; }
   .asset-filter-chip { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 14px; font-size: 12px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); background: #fff; color: #606266; transition: all 0.15s; }
   .asset-filter-chip:hover { border-color: #667eea; color: #667eea; }
@@ -4230,6 +4230,34 @@ function initWordUploadDragDrop() {
 let epChecks = JSON.parse(localStorage.getItem('hy_examprep_checks') || '{}');
 function saveEpChecks() { localStorage.setItem('hy_examprep_checks', JSON.stringify(epChecks)); }
 
+// 专注记录：{ 'YYYY-MM-DD': { '职测': 分钟, '公基': 分钟, ... } }，用于自动生成周打卡表
+let epFocusLog = JSON.parse(localStorage.getItem('hy_ep_focus_log') || '{}');
+function saveEpFocusLog() { localStorage.setItem('hy_ep_focus_log', JSON.stringify(epFocusLog)); }
+function epDateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function epRecordFocus(cat, minutes) {
+  if (!minutes || minutes <= 0) return;
+  const key = epDateKey(new Date());
+  if (!epFocusLog[key]) epFocusLog[key] = {};
+  epFocusLog[key][cat] = (epFocusLog[key][cat] || 0) + minutes;
+  saveEpFocusLog();
+}
+// 本周周一~周日的 Date 数组
+function epWeekDates() {
+  const now = new Date();
+  const dow = now.getDay(); // 0=周日
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+  const arr = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    arr.push(d);
+  }
+  return arr;
+}
+
 const epCourses = [
   { m: '【职测·资料分析】', t: '齐麟（基础+刷题组）', p: 'B站/粉笔', s: '阶段一基础期', r: '体系清晰，适合小白打基础，先跟齐麟建立框架' },
   { m: '【职测·资料分析】', t: '花生十三（系统课+速算）', p: 'B站/CCtalk', s: '阶段二刷题期', r: '速算技巧强，基础打好后用来提速，目标正确率 90%+' },
@@ -4341,7 +4369,15 @@ function priTag(p) {
   return `<span class="tag ${m[p]||'tag-info'}">${p}</span>`;
 }
 
+let epActiveTab = 'schedule'; // 当前显示的事业编子标签，用于专注后自动刷新周打卡表
+// 若当前正停留在「周打卡表」，专注记录后立即重渲染，无需切换标签
+function epRefreshWeeklyIfActive() {
+  if (epActiveTab !== 'weekly') return;
+  const box = document.getElementById('ep-tab-content');
+  if (box) box.innerHTML = renderEpWeekly();
+}
 function switchEpTab(tab) {
+  epActiveTab = tab;
   document.querySelectorAll('.ep-tab').forEach(b => {
     b.classList.toggle('btn-primary', b.dataset.tab === tab);
     b.classList.toggle('btn-ghost', b.dataset.tab !== tab);
@@ -4455,24 +4491,39 @@ function renderEpSchedule() {
 }
 
 function renderEpWeekly() {
-  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">';
-  html += '<span style="font-size:12px;color:#909399;">每周六/日花 1 分钟核对本周打卡，连续 2 天未达标时，下周一减半任务量、以复盘代替</span>';
+  const dates = epWeekDates();
+  const todayKey = epDateKey(new Date());
+  const catNames = ['职测', '公基', '错题复盘', '背诵时政'];
+  let weekTotal = 0;
+  let doneDays = 0;
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">';
+  html += '<span style="font-size:12px;color:#909399;">✅ 本表由左侧「🎯 专注」计时自动生成：选好类别后开始专注，完成后自动更新，无需手写</span>';
   html += '<button class="btn btn-ghost btn-sm" onclick="epResetWeekly()">↺ 重置本周打卡</button></div>';
   html += '<table><thead><tr><th>星期</th><th style="width:80px;">目标时长</th><th style="width:100px;">实际学习</th><th>职测</th><th>公基</th><th>错题复盘</th><th>时政/背诵</th></tr></thead><tbody>';
   epWeekly.forEach((w, wi) => {
-    html += `<tr>
-      <td><strong>${w.d}</strong></td>
+    const key = epDateKey(dates[wi]);
+    const log = epFocusLog[key] || {};
+    const totalMin = Object.values(log).reduce((s, v) => s + (v || 0), 0);
+    weekTotal += totalMin;
+    if (totalMin > 0) doneDays++;
+    const isToday = key === todayKey;
+    html += `<tr style="${isToday ? 'background:#f0f7ff;' : ''}">
+      <td><strong>${w.d}</strong>${isToday ? '<span style="font-size:10px;color:#667eea;margin-left:4px;">今天</span>' : ''}<br><span style="font-size:10px;color:#c0c4cc;">${key.slice(5)}</span></td>
       <td>${w.t}</td>
-      <td><input type="text" style="width:80px;padding:4px 8px;border:1px solid #dcdfe6;border-radius:6px;font-size:12px;" value="${epChecks['wk_'+wi+'_actual']||''}" onchange="toggleEpCheck('wk_${wi}_actual', this, true)"></td>`;
+      <td>${totalMin > 0 ? `<span style="color:#52c41a;font-weight:600;">${totalMin} 分钟</span>` : '<span style="color:#c0c4cc;">—</span>'}</td>`;
     w.sub.forEach((s, si) => {
-      const key = `wk_${wi}_${si}`;
-      const checked = epChecks[key] ? 'checked' : '';
       const disabled = s[0] === '—';
-      html += `<td style="text-align:center;">${disabled?'—':`<input type="checkbox" ${checked} onchange="toggleEpCheck('${key}', this)">`}</td>`;
+      const done = (log[catNames[si]] || 0) > 0;
+      let cell;
+      if (done) cell = '<span style="color:#52c41a;font-size:16px;font-weight:bold;">✓</span>';
+      else if (disabled) cell = '<span style="color:#dcdfe6;">—</span>';
+      else cell = '<span style="color:#dcdfe6;">○</span>';
+      html += `<td style="text-align:center;">${cell}</td>`;
     });
     html += '</tr>';
   });
   html += '</tbody></table>';
+  html += `<div style="margin-top:12px;padding:10px 14px;background:#f6ffed;border-radius:8px;border-left:3px solid #52c41a;font-size:13px;color:#237804;">本周累计专注 <strong>${weekTotal}</strong> 分钟，共 <strong>${doneDays}</strong> 天有学习记录。坚持打卡，日积月累 💪</div>`;
   return html;
 }
 
@@ -4495,7 +4546,9 @@ function epResetChecklist() {
 }
 
 function epResetWeekly() {
-  if (!confirm('确定重置本周打卡表吗？')) return;
+  if (!confirm('确定重置本周打卡表吗？（将清除本周的专注计时记录）')) return;
+  epWeekDates().forEach(d => { delete epFocusLog[epDateKey(d)]; });
+  saveEpFocusLog();
   Object.keys(epChecks).forEach(k => { if (k.startsWith('wk_')) delete epChecks[k]; });
   saveEpChecks();
   switchEpTab('weekly');
@@ -4506,6 +4559,7 @@ let epFocusDuration = 60;
 let epFocusSeconds = 60 * 60;
 let epFocusRunning = false;
 let epFocusTimer = null;
+let epFocusElapsed = 0; // 本次专注已进行的秒数（用于中途结束后补记时长）
 let epFocusCat = '职测'; // 当前专注类别：职测 / 公基 / 错题复盘 / 背诵时政
 let epRestDuration = 10;
 let epRestSeconds = 10 * 60;
@@ -4513,6 +4567,41 @@ let epRestRunning = false;
 let epRestTimer = null;
 let epFocusStats = JSON.parse(localStorage.getItem('hy_ep_focus') || '{"todayMinutes":0,"todaySessions":0,"date":""}');
 let epRestStats = JSON.parse(localStorage.getItem('hy_ep_rest') || '{"todayMinutes":0,"todaySessions":0,"date":""}');
+
+// 持久化专注运行状态，防止刷新/后台导致时长丢失
+function saveEpFocusState() {
+  localStorage.setItem('hy_ep_focus_state', JSON.stringify({
+    duration: epFocusDuration,
+    seconds: epFocusSeconds,
+    elapsed: epFocusElapsed,
+    running: epFocusRunning,
+    cat: epFocusCat,
+    savedAt: Date.now()
+  }));
+}
+function restoreEpFocusState() {
+  const raw = localStorage.getItem('hy_ep_focus_state');
+  if (!raw) return;
+  try {
+    const st = JSON.parse(raw);
+    if (!st || typeof st !== 'object') return;
+    epFocusDuration = st.duration || 60;
+    epFocusCat = st.cat || '职测';
+    // 如果之前在运行，根据经过的真实时间补算秒数（处理浏览器后台节流）
+    if (st.running && st.savedAt) {
+      const elapsedReal = Math.floor((Date.now() - st.savedAt) / 1000);
+      epFocusElapsed = (st.elapsed || 0) + elapsedReal;
+      epFocusSeconds = Math.max(0, (st.seconds || 0) - elapsedReal);
+      epFocusRunning = true;
+    } else {
+      epFocusElapsed = st.elapsed || 0;
+      epFocusSeconds = st.seconds != null ? st.seconds : epFocusDuration * 60;
+      epFocusRunning = false;
+    }
+  } catch (e) { /* ignore */ }
+}
+// 页面加载时恢复专注状态
+restoreEpFocusState();
 
 function epCheckToday() {
   const today = new Date().toDateString();
@@ -4536,55 +4625,61 @@ function epChangeFocus(delta) {
   if (epFocusRunning) return;
   epFocusDuration = Math.max(10, Math.min(180, epFocusDuration + delta));
   epFocusSeconds = epFocusDuration * 60;
+  saveEpFocusState();
   renderEpFocus();
 }
 
 function epSelectFocusCat(cat) {
   epFocusCat = cat;
+  saveEpFocusState();
   document.querySelectorAll('.ep-focus-cat').forEach(b => {
     b.classList.toggle('btn-primary', b.dataset.cat === cat);
     b.classList.toggle('btn-ghost', b.dataset.cat !== cat);
   });
 }
 
-function epSyncFocusToWeekly(cat, minutes) {
-  // 周打卡表列顺序：职测(0) 公基(1) 错题复盘(2) 时政/背诵(3)
-  const catIndex = { '职测': 0, '公基': 1, '错题复盘': 2, '背诵时政': 3 };
-  const si = catIndex[cat];
-  if (si === undefined) return;
-  const dow = new Date().getDay(); // 0=周日 ... 6=周六
-  // epWeekly 顺序：周一(0) 周二(1) 周三(2) 周四(3) 周五(4) 周六(5) 周日(6)
-  const wi = dow === 0 ? 6 : dow - 1;
-  const day = epWeekly[wi];
-  if (!day) return;
-  const subItem = day.sub[si];
-  // 该类别当天是否适用（不是 "—"）
-  if (subItem && subItem[0] === '—') {
-    alert(`⚠️ ${day.d}的「${cat}」非当日计划项，已记录专注时长但未勾选打卡。`);
-  } else {
-    epChecks[`wk_${wi}_${si}`] = true;
+// 本次专注已进行的分钟数（低于 30 秒不记，最少 1 分钟）
+function epFocusSessionMinutes() {
+  const sec = epFocusElapsed;
+  if (sec < 30) return 0;
+  return Math.max(1, Math.round(sec / 60));
+}
+
+// 结束一次专注：记录到最终时长并自动更新周打卡表 + 今日统计
+function epFinishFocus(minutes) {
+  epFocusRunning = false;
+  if (!minutes || minutes <= 0) {
+    epFocusElapsed = 0;
+    saveEpFocusState();
+    return;
   }
-  // 累加实际学习时长
-  const actualKey = `wk_${wi}_actual`;
-  const prev = parseInt(epChecks[actualKey] || '0', 10) || 0;
-  epChecks[actualKey] = String(prev + minutes);
-  saveEpChecks();
+  epRecordFocus(epFocusCat, minutes);
+  epFocusStats.todayMinutes = (epFocusStats.todayMinutes || 0) + minutes;
+  epFocusStats.todaySessions = (epFocusStats.todaySessions || 0) + 1;
+  localStorage.setItem('hy_ep_focus', JSON.stringify(epFocusStats));
+  epFocusElapsed = 0;
+  saveEpFocusState();
+  epRefreshWeeklyIfActive();
+  if (typeof showStatus === 'function') {
+    showStatus(`🎉 专注完成！类别：${epFocusCat} · ${minutes} 分钟（今日 ${epFocusStats.todaySessions} 次 · ${epFocusStats.todayMinutes}m）`, 'success');
+  }
 }
 
 function epToggleFocus() {
-  if (epFocusRunning) { clearInterval(epFocusTimer); epFocusRunning = false; }
+  if (epFocusRunning) { clearInterval(epFocusTimer); epFocusTimer = null; epFocusRunning = false; saveEpFocusState(); }
   else {
     epFocusRunning = true;
+    saveEpFocusState();
     epFocusTimer = setInterval(() => {
-      if (epFocusSeconds > 0) { epFocusSeconds--; renderEpFocus(); }
-      else {
-        clearInterval(epFocusTimer); epFocusRunning = false;
-        epFocusStats.todayMinutes = (epFocusStats.todayMinutes || 0) + epFocusDuration;
-        epFocusStats.todaySessions = (epFocusStats.todaySessions || 0) + 1;
-        localStorage.setItem('hy_ep_focus', JSON.stringify(epFocusStats));
-        epSyncFocusToWeekly(epFocusCat, epFocusDuration);
-        alert(`🎉 专注完成！\n类别：${epFocusCat}\n本次：${epFocusDuration} 分钟\n今日已专注 ${epFocusStats.todaySessions} 次 · ${epFocusStats.todayMinutes}m\n✅ 已自动同步到周打卡表`);
+      if (epFocusSeconds > 0) {
+        epFocusSeconds--; epFocusElapsed++;
+        if (epFocusSeconds % 5 === 0) saveEpFocusState(); // 每 5 秒持久化一次
+        renderEpFocus();
+      } else {
+        clearInterval(epFocusTimer); epFocusTimer = null; epFocusRunning = false;
+        epFinishFocus(epFocusDuration);
         epFocusSeconds = epFocusDuration * 60;
+        saveEpFocusState();
         renderEpFocus();
       }
     }, 1000);
@@ -4592,7 +4687,21 @@ function epToggleFocus() {
   renderEpFocus();
 }
 
-function epResetFocus() { clearInterval(epFocusTimer); epFocusRunning = false; epFocusSeconds = epFocusDuration * 60; renderEpFocus(); }
+function epResetFocus() {
+  clearInterval(epFocusTimer); epFocusTimer = null; epFocusRunning = false;
+  const mins = epFocusSessionMinutes();
+  // 中途结束：把已专注的时长补记到周打卡表（不足 30 秒不记）
+  if (mins > 0) {
+    epFinishFocus(mins);
+  } else if (epFocusElapsed > 0) {
+    epFocusElapsed = 0;
+    saveEpFocusState();
+    if (typeof showStatus === 'function') showStatus('专注时长不足 30 秒，未记录', 'warn');
+  }
+  epFocusSeconds = epFocusDuration * 60;
+  saveEpFocusState();
+  renderEpFocus();
+}
 
 function renderEpRest() {
   const m = Math.floor(epRestSeconds / 60), s = epRestSeconds % 60;
@@ -4895,6 +5004,28 @@ function switchScoreTab(score) {
 
 function renderExamPrep() {
   epCheckToday();
+  // 恢复专注状态：如果之前在运行但计时器丢失（页面刷新），重启计时器
+  if (epFocusRunning && !epFocusTimer) {
+    if (epFocusSeconds <= 0) {
+      // 计时已结束，自动完成记录
+      epFinishFocus(epFocusDuration);
+      epFocusSeconds = epFocusDuration * 60;
+    } else {
+      epFocusTimer = setInterval(() => {
+        if (epFocusSeconds > 0) {
+          epFocusSeconds--; epFocusElapsed++;
+          if (epFocusSeconds % 5 === 0) saveEpFocusState();
+          renderEpFocus();
+        } else {
+          clearInterval(epFocusTimer); epFocusTimer = null; epFocusRunning = false;
+          epFinishFocus(epFocusDuration);
+          epFocusSeconds = epFocusDuration * 60;
+          saveEpFocusState();
+          renderEpFocus();
+        }
+      }, 1000);
+    }
+  }
   renderEpFocus();
   renderEpRest();
   renderExamCountdown();
@@ -9243,11 +9374,12 @@ function renderGifts() {
       const linked = gifts.find(x => x.id === g.linkedId);
       if (linked) {
         const lEv = getGiftEvent(linked.event);
-        linkHtml = `<div class="gift-link">🔗 关联: ${linked.name} · ${lEv.icon} ${lEv.name} · ${linked.date}</div>`;
+        linkHtml = `<div class="gift-link">🔗 关联: ${linked.name} · ${lEv.icon} ${lEv.name} · ${linked.date ? linked.date.replace(/-/g, '.') : '未填时间'}</div>`;
       }
     }
 
     const dirText = isOut ? '我随出' : '对方回礼';
+    const dateText = g.date ? g.date.replace(/-/g, '.') : '未填时间';
     return `<div class="gift-item">
       <div class="gift-icon ${isOut ? 'out' : 'in'}">${ev.icon}</div>
       <div class="gift-body">
@@ -9256,8 +9388,8 @@ function renderGifts() {
         ${linkHtml}
       </div>
       <div class="gift-amount ${isOut ? 'out' : 'in'}">${amountText}</div>
-      <div class="gift-date">${g.date ? escapeHtml(g.date) : '未填时间'}</div>
-      <span class="gift-edit" onclick="openGiftModal(${g.id})" title="编辑">✎</span>
+      <div class="gift-date" title="${g.date || '未填写日期'}">${dateText}</div>
+      <span class="gift-edit" onclick="openGiftModal(${g.id})" title="编辑">✎ 编辑</span>
       <span class="gift-del" onclick="deleteGift(${g.id})">✕</span>
     </div>`;
   }).join('');
