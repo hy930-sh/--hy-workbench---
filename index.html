@@ -522,6 +522,27 @@
   .focus-session { font-size: 13px; color: #909399; margin-bottom: 16px; }
   .focus-controls { display: flex; gap: 8px; justify-content: center; }
 
+  /* 专注时长统计 */
+  .ep-fstat-tabs { display: flex; gap: 6px; }
+  .ep-fstat-range { font-size: 12px; color: #909399; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ep-fstat-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 14px; }
+  .ep-fstat-sum { background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.7); border-radius: 10px; padding: 12px 14px; text-align: center; }
+  .ep-fstat-sum .lbl { font-size: 12px; color: #909399; margin-bottom: 6px; }
+  .ep-fstat-sum .val { font-size: 22px; font-weight: 800; color: #667eea; }
+  .ep-fstat-sum .val small { font-size: 11px; color: #909399; font-weight: 400; margin-left: 2px; }
+  .ep-fstat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .ep-fstat-card { background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.7); border-radius: 12px; padding: 14px 16px; transition: all 0.25s; }
+  .ep-fstat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.12); }
+  .ep-fstat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ep-fstat-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .ep-fstat-name { font-size: 13px; font-weight: 600; color: #303133; }
+  .ep-fstat-time { margin-left: auto; font-size: 15px; font-weight: 800; color: #303133; }
+  .ep-fstat-time small { font-size: 11px; color: #909399; font-weight: 400; margin-left: 2px; }
+  .ep-fstat-bar { height: 6px; background: rgba(102,126,234,0.10); border-radius: 3px; overflow: hidden; }
+  .ep-fstat-bar i { display: block; height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+  .ep-fstat-pct { font-size: 11px; color: #909399; margin-top: 6px; display: flex; justify-content: space-between; }
+  @media (max-width: 900px) { .ep-fstat-grid { grid-template-columns: 1fr; } }
+
   /* 美化滚动条 */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -1221,6 +1242,21 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
               <div id="ep-rest-session" style="font-size:12px;color:#909399;margin-top:10px;">今日休息 0 次 · 0m</div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- 专注时长统计 -->
+      <div class="panel" style="margin-top:20px;" data-panel-id="page-examprep-p1s" draggable="false">
+        <div class="panel-header"><span class="drag-handle" title="拖拽排序">⋮⋮</span><h3>📊 专注时长统计</h3>
+          <div class="ep-fstat-tabs">
+            <button class="btn btn-primary btn-sm ep-fstat-tab" data-period="day" onclick="switchEpFstat('day')">今日</button>
+            <button class="btn btn-ghost btn-sm ep-fstat-tab" data-period="week" onclick="switchEpFstat('week')">本周</button>
+            <button class="btn btn-ghost btn-sm ep-fstat-tab" data-period="month" onclick="switchEpFstat('month')">本月</button>
+            <button class="btn btn-ghost btn-sm ep-fstat-tab" data-period="year" onclick="switchEpFstat('year')">今年</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="ep-fstat-content"></div>
         </div>
       </div>
 
@@ -4527,6 +4563,112 @@ function renderEpWeekly() {
   return html;
 }
 
+// ====== 事业编备考 · 专注时长统计（今日 / 本周 / 本月 / 今年）======
+const EP_FOCUS_CATS = ['职测', '公基', '错题复盘', '背诵时政'];
+const EP_FOCUS_CAT_META = {
+  '职测': { icon: '📝', color: '#667eea' },
+  '公基': { icon: '📚', color: '#52c41a' },
+  '错题复盘': { icon: '🔍', color: '#fa8c16' },
+  '背诵时政': { icon: '🗞️', color: '#13c2c2' },
+};
+let epFstatPeriod = 'day';
+
+function epFstatRange(period) {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let start = new Date(end);
+  let label = '';
+  if (period === 'week') {
+    const dow = now.getDay();
+    start.setDate(end.getDate() - (dow === 0 ? 6 : dow - 1));
+    label = `${start.getMonth()+1}.${String(start.getDate()).padStart(2,'0')} - ${end.getMonth()+1}.${String(end.getDate()).padStart(2,'0')}`;
+  } else if (period === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    label = `${now.getFullYear()} 年 ${now.getMonth()+1} 月`;
+  } else if (period === 'year') {
+    start = new Date(now.getFullYear(), 0, 1);
+    label = `${now.getFullYear()} 年`;
+  } else {
+    label = `${now.getMonth()+1} 月 ${now.getDate()} 日（今天）`;
+  }
+  return { start, end, label };
+}
+
+function epFmtDuration(min) {
+  min = Math.round(min || 0);
+  if (min <= 0) return { main: '0', unit: '分钟' };
+  if (min < 60) return { main: String(min), unit: '分钟' };
+  const h = Math.floor(min / 60), m = min % 60;
+  return { main: String(h), unit: m ? `小时 ${m} 分` : '小时' };
+}
+
+function epFstatAgg(period) {
+  const { start, end, label } = epFstatRange(period);
+  const perCat = {};
+  EP_FOCUS_CATS.forEach(c => { perCat[c] = 0; });
+  let total = 0, activeDays = 0;
+  Object.keys(epFocusLog).forEach(key => {
+    const p = key.split('-');
+    if (p.length !== 3) return;
+    const d = new Date(+p[0], +p[1] - 1, +p[2]);
+    if (isNaN(d.getTime()) || d < start || d > end) return;
+    const log = epFocusLog[key] || {};
+    let dayTotal = 0;
+    EP_FOCUS_CATS.forEach(c => {
+      const m = log[c] || 0;
+      if (m > 0) { perCat[c] += m; dayTotal += m; }
+    });
+    if (dayTotal > 0) { activeDays++; total += dayTotal; }
+  });
+  return { perCat, total, activeDays, label };
+}
+
+function renderEpFstat() {
+  const box = document.getElementById('ep-fstat-content');
+  if (!box) return;
+  const { perCat, total, activeDays, label } = epFstatAgg(epFstatPeriod);
+  const t = epFmtDuration(total);
+  const avg = epFmtDuration(activeDays ? total / activeDays : 0);
+  let html = `<div class="ep-fstat-range"><span>统计区间：${label}</span></div>`;
+  html += `<div class="ep-fstat-summary">
+    <div class="ep-fstat-sum"><div class="lbl">累计专注</div><div class="val">${t.main}<small>${t.unit}</small></div></div>
+    <div class="ep-fstat-sum"><div class="lbl">有记录天数</div><div class="val">${activeDays}<small>天</small></div></div>
+    <div class="ep-fstat-sum"><div class="lbl">日均（活跃日）</div><div class="val">${avg.main}<small>${avg.unit}</small></div></div>
+  </div>`;
+  if (total <= 0) {
+    html += `<div style="text-align:center;padding:22px 0;color:#c0c4cc;font-size:13px;">该时段还没有专注记录，去上方「⏱️ 专注」选好类别开始一次专注吧</div>`;
+    box.innerHTML = html;
+    return;
+  }
+  html += '<div class="ep-fstat-grid">';
+  EP_FOCUS_CATS.forEach(c => {
+    const meta = EP_FOCUS_CAT_META[c];
+    const m = perCat[c] || 0;
+    const pct = total > 0 ? Math.round(m / total * 100) : 0;
+    const d = epFmtDuration(m);
+    html += `<div class="ep-fstat-card">
+      <div class="ep-fstat-head">
+        <span class="ep-fstat-icon" style="background:${meta.color}1a;color:${meta.color};">${meta.icon}</span>
+        <span class="ep-fstat-name">${c}</span>
+        <span class="ep-fstat-time">${d.main}<small>${d.unit}</small></span>
+      </div>
+      <div class="ep-fstat-bar"><i style="width:${pct}%;background:${meta.color};"></i></div>
+      <div class="ep-fstat-pct"><span>占比 ${pct}%</span><span>${m > 0 ? '已专注' : '暂无记录'}</span></div>
+    </div>`;
+  });
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function switchEpFstat(period) {
+  epFstatPeriod = period;
+  document.querySelectorAll('.ep-fstat-tab').forEach(b => {
+    b.classList.toggle('btn-primary', b.dataset.period === period);
+    b.classList.toggle('btn-ghost', b.dataset.period !== period);
+  });
+  renderEpFstat();
+}
+
 function toggleEpCheck(key, el, isText) {
   if (isText) {
     epChecks[key] = el.value;
@@ -4551,6 +4693,7 @@ function epResetWeekly() {
   saveEpFocusLog();
   Object.keys(epChecks).forEach(k => { if (k.startsWith('wk_')) delete epChecks[k]; });
   saveEpChecks();
+  renderEpFstat();
   switchEpTab('weekly');
 }
 
@@ -4660,6 +4803,7 @@ function epFinishFocus(minutes) {
   epFocusElapsed = 0;
   saveEpFocusState();
   epRefreshWeeklyIfActive();
+  renderEpFstat();
   if (typeof showStatus === 'function') {
     showStatus(`🎉 专注完成！类别：${epFocusCat} · ${minutes} 分钟（今日 ${epFocusStats.todaySessions} 次 · ${epFocusStats.todayMinutes}m）`, 'success');
   }
@@ -5028,6 +5172,7 @@ function renderExamPrep() {
   }
   renderEpFocus();
   renderEpRest();
+  switchEpFstat(epFstatPeriod);
   renderExamCountdown();
   renderDailyQuote();
   switchScoreTab('70');
