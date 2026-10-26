@@ -6518,7 +6518,7 @@ function renderTripDetail(t) {
       const hasSub = c.sub && c.sub.some(s => stats.subCatMap[s.key]);
       const isOpen = expandedTripCats.has(c.key);
       const toggle = hasSub
-        ? `<span class="tc-toggle ${isOpen ? 'open' : ''}" onclick="toggleTripCat('${c.key}')"><i></i></span>`
+        ? `<span class="tc-toggle ${isOpen ? 'open' : ''}"><i></i></span>`
         : '<span style="width:20px;display:inline-block;"></span>';
       const clickable = hasSub ? `onclick="toggleTripCat('${c.key}')" style="cursor:pointer;"` : '';
       html += `<div class="trip-cat-row" ${clickable}>
