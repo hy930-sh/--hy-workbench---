@@ -382,7 +382,7 @@
   .trip-summary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; border-radius: 14px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; position: relative; overflow: hidden; }
   .trip-summary::before { content: '🐱'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 60px; opacity: 0.18; }
   .trip-summary .ts-meta { font-size: 12px; opacity: 0.85; margin-bottom: 12px; }
-  .trip-summary .ts-stats { display: flex; gap: 28px; position: relative; z-index: 1; }
+  .trip-summary .ts-stats { display: flex; gap: 22px; flex-wrap: wrap; position: relative; z-index: 1; }
   .trip-summary .ts-stat .ts-val { font-size: 24px; font-weight: 800; line-height: 1; }
   .trip-summary .ts-stat .ts-label { font-size: 11px; opacity: 0.85; margin-top: 4px; }
   .trip-cat-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.05); }
@@ -391,7 +391,7 @@
   .trip-cat-row .tc-bar { flex: 1; height: 6px; background: rgba(0,0,0,0.06); border-radius: 3px; overflow: hidden; }
   .trip-cat-row .tc-bar-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; }
   .trip-cat-row .tc-count { font-size: 11px; color: #909399; width: 50px; text-align: right; }
-  .trip-cat-row .tc-amount { font-size: 13px; color: #d4380d; font-weight: 600; width: 80px; text-align: right; }
+  .trip-cat-row .tc-amount { font-size: 13px; color: #d4380d; font-weight: 600; width: 130px; text-align: right; }
   .trip-member-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(102,126,234,0.04); border-radius: 10px; margin-bottom: 8px; }
   .trip-member-row .tm-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: linear-gradient(135deg, #fbc2eb, #a6c1ee); flex-shrink: 0; }
   .trip-member-row .tm-info { flex: 1; font-size: 13px; color: #303133; }
@@ -6235,7 +6235,10 @@ function saveTrips() { localStorage.setItem('hy_trips', JSON.stringify(trips)); 
 
 const TRIP_CATS = [
   { key: 'stay', name: '住宿', icon: '🏠' },
-  { key: 'food', name: '餐饮', icon: '🍜' },
+  { key: 'food', name: '餐饮', icon: '🍜', sub: [
+    { key: 'food_local', name: '特色美食', icon: '🍲' },
+    { key: 'food_snack', name: '零食', icon: '🍪' }
+  ]},
   { key: 'transport', name: '交通', icon: '🚗', sub: [
     { key: 'taxi', name: '打车', icon: '🚕' },
     { key: 'metro', name: '地铁', icon: '🚇' },
@@ -6243,21 +6246,51 @@ const TRIP_CATS = [
     { key: 'train', name: '动车', icon: '🚄' },
     { key: 'flight', name: '飞机', icon: '✈️' },
     { key: 'toll', name: '高速费', icon: '🛣️' },
-    { key: 'rental', name: '租车费', icon: '🚙' },
+    { key: 'rental_car', name: '四轮租车费', icon: '🚙' },
+    { key: 'rental_ebike', name: '二轮电动租车费', icon: '🛵' },
     { key: 'parking', name: '停车费', icon: '🅿️' },
     { key: 'fuel', name: '油费', icon: '⛽' },
     { key: 'charge', name: '电费', icon: '🔌' }
   ]},
-  { key: 'ticket', name: '门票', icon: '🎫' },
-  { key: 'shop', name: '购物', icon: '🛍' },
-  { key: 'fun', name: '娱乐', icon: '🎮' },
+  { key: 'ticket', name: '门票', icon: '🎫', sub: [
+    { key: 'ticket_entry', name: '门票', icon: '🎟️' },
+    { key: 'ticket_guide', name: '讲解', icon: '🎙️' },
+    { key: 'ticket_bus', name: '观光车/大巴', icon: '🚍' },
+    { key: 'ticket_cable', name: '缆车', icon: '🚠' }
+  ]},
+  { key: 'shop', name: '购物', icon: '🛍', sub: [
+    { key: 'shop_store', name: '便利店/超市', icon: '🏪' },
+    { key: 'shop_daily', name: '日用品', icon: '🧴' },
+    { key: 'shop_med', name: '药品', icon: '💊' }
+  ]},
+  { key: 'fun', name: '娱乐', icon: '🎮', sub: [
+    { key: 'fun_play', name: '娱乐', icon: '🕹️' },
+    { key: 'fun_lottery', name: '彩票', icon: '🎰' }
+  ]},
   { key: 'other', name: '其他', icon: '📦' }
 ];
+
+// 收入分类（如彩票中奖、顺风车、报销/退款等）
+const INCOME_CATS = [
+  { key: 'lottery', name: '彩票中奖', icon: '🎰' },
+  { key: 'carpool', name: '顺风车', icon: '🚗' },
+  { key: 'refund', name: '报销/退款', icon: '💰' },
+  { key: 'other_income', name: '其他收入', icon: '💵' }
+];
+function getIncomeCatInfo(key) {
+  return INCOME_CATS.find(c => c.key === key) || { key: key || 'other_income', name: '其他收入', icon: '💵' };
+}
+
 const TRIP_AVATARS = ['🐱', '🐶', '🐰', '🦊', '🐻', '🐯', '🐨', '🐼', '🐸', '🐵'];
 const TRIP_COVERS = ['🏔️', '🏖️', '🏝️', '🌋', '🏰', '🗽', '🎡', '🚂', '🚢', '🛕', '⛩️', '🕌', '⛪', '🌆', '🌅', '🌄', '🌃', '🏞️', '🌋', '⛺'];
 
-// 平铺交通子分类映射（用于统计时合并展示父分类「交通」）
+// 平铺分类映射（用于统计时合并展示父分类）
 function getTripCatInfo(key) {
+  // 兼容旧版「租车费」分类
+  if (key === 'rental') {
+    const parent = TRIP_CATS.find(c => c.key === 'transport');
+    return { key: 'rental', name: '租车费', icon: '🚙', parent };
+  }
   for (const c of TRIP_CATS) {
     if (c.key === key) return c;
     if (c.sub) {
@@ -6293,8 +6326,13 @@ function fmtTripDate(ts) {
 }
 
 function calcTripStats(trip) {
-  const total = (trip.expenses || []).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-  const count = (trip.expenses || []).length;
+  const expenses = trip.expenses || [];
+  const incomes = trip.incomes || [];
+  const total = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  const count = expenses.length;
+  const totalIncome = incomes.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  const incomeCount = incomes.length;
+  const netTotal = total - totalIncome;
   // 计算旅行天数：起止日期齐全 → 用 endDate-startDate+1；只有起始日期 → 用 today-startDate+1
   let days = 0;
   const start = trip.startDate ? new Date(trip.startDate) : null;
@@ -6309,37 +6347,48 @@ function calcTripStats(trip) {
   }
   // 日均消费 = 总消费 / 旅行天数
   const perDay = days > 0 ? total / days : 0;
-  // 按分类聚合（交通子分类合并到父分类「交通」）
+  // 按分类聚合（子分类合并到父分类）
   const catMap = {};
-  const subCatMap = {}; // 交通子分类单独聚合
-  (trip.expenses || []).forEach(e => {
+  const subCatMap = {}; // 子分类单独聚合
+  expenses.forEach(e => {
     const k = e.cat || 'other';
     const info = getTripCatInfo(k);
     const parentKey = info.parent ? info.parent.key : k;
     if (!catMap[parentKey]) catMap[parentKey] = { count: 0, amount: 0 };
     catMap[parentKey].count++;
     catMap[parentKey].amount += parseFloat(e.amount) || 0;
-    // 如果是交通子分类，同时记录到 subCatMap
+    // 如果是子分类，同时记录到 subCatMap
     if (info.parent) {
       if (!subCatMap[k]) subCatMap[k] = { count: 0, amount: 0, parentKey: parentKey };
       subCatMap[k].count++;
       subCatMap[k].amount += parseFloat(e.amount) || 0;
     }
   });
-  // 按成员聚合（消费按平均分摊）
-  const perPerson = trip.members && trip.members.length ? total / trip.members.length : 0;
-  const memberMap = {};
-  (trip.members || []).forEach(m => {
-    const paid = (trip.expenses || []).filter(e => e.payerId === m.id).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-    const balance = paid - perPerson;
-    memberMap[m.id] = { paid, consume: perPerson, balance };
+  // 收入按分类聚合
+  const incomeCatMap = {};
+  incomes.forEach(i => {
+    const k = i.cat || 'other_income';
+    if (!incomeCatMap[k]) incomeCatMap[k] = { count: 0, amount: 0 };
+    incomeCatMap[k].count++;
+    incomeCatMap[k].amount += parseFloat(i.amount) || 0;
   });
-  return { total, count, catMap, subCatMap, memberMap, perPerson, days, perDay };
+  // 按成员聚合（净分摊：人均净支出 = (总消费 - 总收入) / 成员数）
+  const members = trip.members || [];
+  const perPerson = members.length ? netTotal / members.length : 0;
+  const memberMap = {};
+  members.forEach(m => {
+    const paid = expenses.filter(e => e.payerId === m.id).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+    const received = incomes.filter(i => i.receiverId === m.id).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    const balance = (paid - received) - perPerson;
+    memberMap[m.id] = { paid, received, consume: perPerson, balance };
+  });
+  return { total, count, totalIncome, incomeCount, netTotal, catMap, subCatMap, incomeCatMap, memberMap, perPerson, days, perDay };
 }
 
 let currentTripId = null;
 let editingTripId = null;
 let editingExpenseId = null;
+let editingRecordIsIncome = false;
 
 function renderTrips() {
   const box = document.getElementById('trip-list');
@@ -6356,7 +6405,8 @@ function renderTrips() {
     box.innerHTML = '<div class="empty" style="padding:30px;"><div class="icon">✈️</div><p>还没有旅行账本<br>点击「+ 新建账本」开始记录你的旅行</p></div>';
     return;
   }
-  trips.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  // 按旅行结束日期（无则开始日期，再无则创建时间）倒序：最近的放最前
+  trips.sort((a, b) => (b.endDate || b.startDate || b.createdAt || 0) - (a.endDate || a.startDate || a.createdAt || 0));
   const cards = trips.map(renderTripCard).join('');
   box.innerHTML = `<div class="trip-grid">${cards}
     <div class="trip-add-card" onclick="openTripModal()" title="新建账本">
@@ -6384,8 +6434,8 @@ function renderTripCard(t) {
         <span>${fmtTripDate(t.startDate || t.createdAt)}${t.endDate ? ' ~ ' + fmtTripDate(t.endDate) : (t.startDate ? ' 至今' : '')}</span>
       </div>
       <div style="margin-top:8px;padding-top:8px;border-top:1px dashed rgba(0,0,0,0.06);">
-        <span style="font-size:11px;color:#909399;">消费</span>
-        <span style="float:right;"><span class="trip-cost">¥${stats.total.toFixed(2)}</span></span>
+        <div><span style="font-size:11px;color:#909399;">消费</span><span style="float:right;font-weight:600;color:#d4380d;">¥${stats.total.toFixed(2)}</span></div>
+        ${stats.totalIncome > 0 ? `<div style="margin-top:4px;"><span style="font-size:11px;color:#909399;">收入</span><span style="float:right;font-weight:600;color:#52c41a;">¥${stats.totalIncome.toFixed(2)}</span></div>` : ''}
       </div>
     </div>
   </div>`;
@@ -6411,11 +6461,13 @@ function renderTripDetail(t) {
       </div>
       <div class="ts-stats">
         <div class="ts-stat"><div class="ts-val">¥${stats.total.toFixed(2)}</div><div class="ts-label">总消费</div></div>
+        <div class="ts-stat"><div class="ts-val" style="color:#8cffbf;">¥${stats.totalIncome.toFixed(2)}</div><div class="ts-label">总收入</div></div>
+        <div class="ts-stat"><div class="ts-val">¥${stats.netTotal.toFixed(2)}</div><div class="ts-label">净支出</div></div>
         <div class="ts-stat"><div class="ts-val">${stats.count}</div><div class="ts-label">消费笔数</div></div>
         <div class="ts-stat"><div class="ts-val">${stats.days || '--'}</div><div class="ts-label">旅行天数${t.endDate ? '' : '(进行中)'}</div></div>
         <div class="ts-stat"><div class="ts-val">¥${stats.perDay.toFixed(2)}</div><div class="ts-label">日均消费</div></div>
         <div class="ts-stat"><div class="ts-val">${(t.members || []).length}</div><div class="ts-label">账本成员</div></div>
-        <div class="ts-stat"><div class="ts-val">¥${stats.perPerson.toFixed(2)}</div><div class="ts-label">人均</div></div>
+        <div class="ts-stat"><div class="ts-val">¥${stats.perPerson.toFixed(2)}</div><div class="ts-label">人均净支出</div></div>
       </div>
     </div>
     <div style="display:flex;gap:8px;position:relative;z-index:1;">
@@ -6425,10 +6477,10 @@ function renderTripDetail(t) {
     </div>
   </div>`;
 
-  // 分类统计（交通分类下若有子分类消费，则在交通行下方展开显示子分类）
+  // 分类统计（子分类消费在父分类下方展开）
   const catEntries = TRIP_CATS.map(c => ({ ...c, data: stats.catMap[c.key] })).filter(x => x.data);
   if (catEntries.length > 0) {
-    html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>📂 分类统计</h3></div><div class="panel-body" style="padding:12px 20px;">`;
+    html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>📂 消费分类统计</h3></div><div class="panel-body" style="padding:12px 20px;">`;
     catEntries.forEach(c => {
       const pct = stats.total > 0 ? (c.data.amount / stats.total * 100) : 0;
       html += `<div class="trip-cat-row">
@@ -6436,23 +6488,40 @@ function renderTripDetail(t) {
         <span class="tc-name">${c.name}</span>
         <div class="tc-bar"><div class="tc-bar-fill" style="width:${pct.toFixed(1)}%;"></div></div>
         <span class="tc-count">${c.data.count} 笔</span>
-        <span class="tc-amount">¥${c.data.amount.toFixed(2)}</span>
+        <span class="tc-amount">¥${c.data.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(${pct.toFixed(1)}%)</small></span>
       </div>`;
-      // 若是交通且存在子分类消费，展开显示子分类
-      if (c.key === 'transport' && c.sub) {
+      // 若该分类下有子分类消费，展开显示子分类（按占总消费的百分比）
+      if (c.sub) {
         c.sub.forEach(s => {
           const sd = stats.subCatMap[s.key];
           if (!sd) return;
-          const subPct = c.data.amount > 0 ? (sd.amount / c.data.amount * 100) : 0;
+          const subPct = stats.total > 0 ? (sd.amount / stats.total * 100) : 0;
           html += `<div class="trip-cat-row" style="padding-left:24px;background:rgba(102,126,234,0.04);">
             <span class="tc-icon" style="font-size:14px;">↳ ${s.icon}</span>
             <span class="tc-name" style="color:#606266;font-size:12px;">${s.name}</span>
             <div class="tc-bar"><div class="tc-bar-fill" style="width:${subPct.toFixed(1)}%;background:linear-gradient(90deg, #fbc2eb, #a6c1ee);"></div></div>
             <span class="tc-count">${sd.count} 笔</span>
-            <span class="tc-amount" style="color:#d4380d;font-weight:500;">¥${sd.amount.toFixed(2)}</span>
+            <span class="tc-amount" style="color:#d4380d;font-weight:500;">¥${sd.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(${subPct.toFixed(1)}%)</small></span>
           </div>`;
         });
       }
+    });
+    html += '</div></div>';
+  }
+
+  // 收入分类统计
+  const incomeEntries = INCOME_CATS.map(c => ({ ...c, data: stats.incomeCatMap[c.key] })).filter(x => x.data);
+  if (incomeEntries.length > 0) {
+    html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>💰 收入分类统计</h3></div><div class="panel-body" style="padding:12px 20px;">`;
+    incomeEntries.forEach(c => {
+      const pct = stats.totalIncome > 0 ? (c.data.amount / stats.totalIncome * 100) : 0;
+      html += `<div class="trip-cat-row">
+        <span class="tc-icon">${c.icon}</span>
+        <span class="tc-name">${c.name}</span>
+        <div class="tc-bar"><div class="tc-bar-fill" style="width:${pct.toFixed(1)}%;background:linear-gradient(90deg, #43e97b, #38f9d7);"></div></div>
+        <span class="tc-count">${c.data.count} 笔</span>
+        <span class="tc-amount" style="color:#389e0d;">+¥${c.data.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(${pct.toFixed(1)}%)</small></span>
+      </div>`;
     });
     html += '</div></div>';
   }
@@ -6461,7 +6530,7 @@ function renderTripDetail(t) {
   if ((t.members || []).length > 0) {
     html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>👥 成员明细</h3><span style="font-size:11px;color:#909399;">按平均分摊计算</span></div><div class="panel-body" style="padding:12px 20px;">`;
     (t.members || []).forEach(m => {
-      const ms = stats.memberMap[m.id] || { paid: 0, consume: 0, balance: 0 };
+      const ms = stats.memberMap[m.id] || { paid: 0, received: 0, consume: 0, balance: 0 };
       let badge = '';
       if (Math.abs(ms.balance) < 0.01) badge = `<span class="tm-badge tm-badge-even">已平</span>`;
       else if (ms.balance > 0) badge = `<span class="tm-badge tm-badge-receive">应收 ¥${ms.balance.toFixed(2)}</span>`;
@@ -6470,7 +6539,7 @@ function renderTripDetail(t) {
         <div class="tm-avatar">${m.avatar || '🐱'}</div>
         <div class="tm-info">
           <div>${escapeHtml(m.name || '成员')}</div>
-          <div class="tm-sub">消费 ¥${ms.consume.toFixed(2)} · 付款 ¥${ms.paid.toFixed(2)}</div>
+          <div class="tm-sub">付款 ¥${ms.paid.toFixed(2)}${ms.received > 0 ? ` · 收入 ¥${ms.received.toFixed(2)}` : ''} · 分摊 ¥${ms.consume.toFixed(2)}</div>
         </div>
         ${badge}
       </div>`;
@@ -6481,31 +6550,54 @@ function renderTripDetail(t) {
   // 打卡地点 & 美食（左右两栏）
   html += `<div class="punch-section">${renderPunchSection(t, 'place')}${renderPunchSection(t, 'food')}</div>`;
 
-  // 消费明细
-  html += `<div class="panel"><div class="panel-header"><h3>📒 消费明细</h3></div><div class="panel-body" style="padding:12px 20px;">`;
-  if ((t.expenses || []).length === 0) {
-    html += '<div class="empty" style="padding:20px;"><div class="icon">📒</div><p>还没有消费记录，点击右上角「+ 记一笔」</p></div>';
+  // 收支明细（支出 + 收入合并，按日期倒序）
+  html += `<div class="panel"><div class="panel-header"><h3>📒 收支明细</h3></div><div class="panel-body" style="padding:12px 20px;">`;
+  const allRecords = [
+    ...(t.expenses || []).map(e => ({ ...e, _type: 'expense' })),
+    ...(t.incomes || []).map(i => ({ ...i, _type: 'income' }))
+  ];
+  if (allRecords.length === 0) {
+    html += '<div class="empty" style="padding:20px;"><div class="icon">📒</div><p>还没有收支记录，点击右上角「+ 记一笔」</p></div>';
   } else {
-    const sortedExp = [...t.expenses].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
-    html += '<div class="trip-expense-row te-head"><div>日期</div><div>内容</div><div>分类</div><div>付款人</div><div>金额</div></div>';
-    sortedExp.forEach(e => {
-      const info = getTripCatInfo(e.cat);
-      const catLabel = info.parent
-        ? `${info.parent.icon} ${info.parent.name} / ${info.icon} ${info.name}`
-        : `${info.icon} ${info.name}`;
-      const payer = (t.members || []).find(m => m.id === e.payerId);
-      html += `<div class="trip-expense-row">
-        <div style="font-size:12px;">${e.date || '--'}</div>
-        <div>${escapeHtml(e.desc || '(无描述)')}
-          <span style="float:right;display:inline-flex;gap:4px;">
-            <span class="asset-action-btn" title="编辑" onclick="openExpenseModal(${e.id})" style="display:inline-flex;opacity:0.6;">✎</span>
-            <span class="asset-action-btn" title="删除" onclick="delExpense(${e.id})" style="display:inline-flex;opacity:0.6;color:#ff4d4f;">✕</span>
-          </span>
-        </div>
-        <div>${catLabel}</div>
-        <div>${payer ? escapeHtml(payer.name) : '--'}</div>
-        <div style="color:#d4380d;font-weight:600;">¥${(parseFloat(e.amount) || 0).toFixed(2)}</div>
-      </div>`;
+    allRecords.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
+    html += '<div class="trip-expense-row te-head"><div>日期</div><div>内容</div><div>分类</div><div>付款/收款人</div><div>金额</div></div>';
+    allRecords.forEach(r => {
+      if (r._type === 'income') {
+        const info = getIncomeCatInfo(r.cat);
+        const receiver = (t.members || []).find(m => m.id === r.receiverId);
+        const amt = parseFloat(r.amount) || 0;
+        html += `<div class="trip-expense-row" style="background:rgba(82,196,26,0.04);">
+          <div style="font-size:12px;">${r.date || '--'}</div>
+          <div>${escapeHtml(r.desc || '(无描述)')}
+            <span style="float:right;display:inline-flex;gap:4px;">
+              <span class="asset-action-btn" title="编辑" onclick="openExpenseModal(${r.id})" style="display:inline-flex;opacity:0.6;">✎</span>
+              <span class="asset-action-btn" title="删除" onclick="delExpense(${r.id})" style="display:inline-flex;opacity:0.6;color:#ff4d4f;">✕</span>
+            </span>
+          </div>
+          <div>${info.icon} ${info.name}</div>
+          <div>${receiver ? escapeHtml(receiver.name) : '--'}</div>
+          <div style="color:#389e0d;font-weight:600;">+¥${amt.toFixed(2)}</div>
+        </div>`;
+      } else {
+        const info = getTripCatInfo(r.cat);
+        const catLabel = info.parent
+          ? `${info.parent.icon} ${info.parent.name} / ${info.icon} ${info.name}`
+          : `${info.icon} ${info.name}`;
+        const payer = (t.members || []).find(m => m.id === r.payerId);
+        const amt = parseFloat(r.amount) || 0;
+        html += `<div class="trip-expense-row">
+          <div style="font-size:12px;">${r.date || '--'}</div>
+          <div>${escapeHtml(r.desc || '(无描述)')}
+            <span style="float:right;display:inline-flex;gap:4px;">
+              <span class="asset-action-btn" title="编辑" onclick="openExpenseModal(${r.id})" style="display:inline-flex;opacity:0.6;">✎</span>
+              <span class="asset-action-btn" title="删除" onclick="delExpense(${r.id})" style="display:inline-flex;opacity:0.6;color:#ff4d4f;">✕</span>
+            </span>
+          </div>
+          <div>${catLabel}</div>
+          <div>${payer ? escapeHtml(payer.name) : '--'}</div>
+          <div style="color:#d4380d;font-weight:600;">¥${amt.toFixed(2)}</div>
+        </div>`;
+      }
     });
   }
   html += '</div></div>';
@@ -6600,64 +6692,99 @@ function confirmTrip() {
   renderTrips();
 }
 
-// 记一笔消费
+// 记一笔（支出 / 收入）
 function openExpenseModal(id) {
   if (!currentTripId) { alert('请先进入账本详情'); return; }
   const t = trips.find(x => x.id === currentTripId);
   if (!t) return;
   editingExpenseId = id || null;
-  const e = id ? (t.expenses || []).find(x => x.id === id) : null;
-  document.getElementById('qm-title').textContent = e ? '编辑消费' : '记一笔';
-  // 分类选项（交通下的子分类作为分组子项）
-  let catOpts = '';
-  TRIP_CATS.forEach(c => {
-    if (c.sub) {
-      catOpts += `<optgroup label="${c.icon} ${c.name}">`;
-      // 父分类「交通」本身也可作为一个选项（用于无法细分的交通支出）
-      catOpts += `<option value="${c.key}" ${e && e.cat === c.key ? 'selected' : ''}>${c.icon} 交通（其他/未细分）</option>`;
-      c.sub.forEach(s => {
-        catOpts += `<option value="${s.key}" ${e && e.cat === s.key ? 'selected' : ''}>${s.icon} ${s.name}</option>`;
-      });
-      catOpts += '</optgroup>';
-    } else {
-      catOpts += `<option value="${c.key}" ${e && e.cat === c.key ? 'selected' : ''}>${c.icon} ${c.name}</option>`;
-    }
-  });
-  const memberOpts = (t.members || []).map(m => `<option value="${m.id}" ${e && e.payerId === m.id ? 'selected' : ''}>${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
+  editingRecordIsIncome = false;
+  let rec = null;
+  if (id) {
+    rec = (t.expenses || []).find(x => x.id === id);
+    if (!rec) { rec = (t.incomes || []).find(x => x.id === id); editingRecordIsIncome = !!rec; }
+  }
+  document.getElementById('qm-title').textContent = rec ? (editingRecordIsIncome ? '编辑收入' : '编辑消费') : '记一笔';
+  const memberOpts = (t.members || []).map(m => `<option value="${m.id}" ${rec && (rec.payerId || rec.receiverId) === m.id ? 'selected' : ''}>${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
   const today = fmtTripDate(Date.now());
+  const isEditing = !!rec;
   document.getElementById('qm-body').innerHTML = `
-    <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div><label>日期 *</label><input type="date" id="qm-e-date" value="${e ? e.date : today}"></div>
-      <div><label>金额(元) *</label><input type="number" step="0.01" id="qm-e-amount" placeholder="如：120.5" value="${e ? e.amount : ''}"></div>
+    <div class="form-row" style="${isEditing ? 'display:none;' : 'display:flex;gap:12px;align-items:center;background:#f7f8fc;padding:10px 14px;border-radius:8px;'}">
+      <label style="font-size:13px;font-weight:600;">类型：</label>
+      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="expense" ${!editingRecordIsIncome ? 'checked' : ''} onchange="refreshTripCatOptions(false)"> 支出</label>
+      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="income" ${editingRecordIsIncome ? 'checked' : ''} onchange="refreshTripCatOptions(true)"> 收入</label>
+      ${isEditing ? '<span style="font-size:11px;color:#909399;">（编辑时不可切换类型）</span>' : ''}
     </div>
     <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div><label>分类</label><select id="qm-e-cat">${catOpts}</select></div>
-      <div><label>付款人</label><select id="qm-e-payer">${memberOpts}</select></div>
+      <div><label>日期 *</label><input type="date" id="qm-e-date" value="${rec ? rec.date : today}"></div>
+      <div><label>金额(元) *</label><input type="number" step="0.01" id="qm-e-amount" placeholder="如：120.5" value="${rec ? rec.amount : ''}"></div>
     </div>
-    <div class="form-row"><label>内容/描述</label><input type="text" id="qm-e-desc" placeholder="如：民宿两晚 / 北京→上海高铁" value="${e ? escapeHtml(e.desc || '') : ''}"></div>
-    <p style="font-size:11px;color:#909399;margin-top:-4px;">💡 交通分类可细分为打车、地铁、公交、动车、飞机、高速费、租车费、停车费、油费、电费</p>
+    <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label>分类</label><select id="qm-e-cat"></select></div>
+      <div><label id="qm-e-payer-label">${editingRecordIsIncome ? '收款人' : '付款人'}</label><select id="qm-e-payer">${memberOpts}</select></div>
+    </div>
+    <div class="form-row"><label>内容/描述</label><input type="text" id="qm-e-desc" placeholder="如：民宿两晚 / 彩票中奖 50 元" value="${rec ? escapeHtml(rec.desc || '') : ''}"></div>
+    <p style="font-size:11px;color:#909399;margin-top:-4px;" id="qm-e-hint"></p>
   `;
+  refreshTripCatOptions(editingRecordIsIncome);
   document.getElementById('qm-confirm').onclick = confirmExpense;
   document.getElementById('qm-confirm').textContent = '确定';
   document.getElementById('quick-modal').classList.add('show');
 }
 
+// 根据收支类型刷新分类下拉
+function refreshTripCatOptions(isIncome) {
+  const select = document.getElementById('qm-e-cat');
+  const payerLabel = document.getElementById('qm-e-payer-label');
+  const hint = document.getElementById('qm-e-hint');
+  if (payerLabel) payerLabel.textContent = isIncome ? '收款人' : '付款人';
+  if (!select) return;
+  let html = '';
+  if (isIncome) {
+    INCOME_CATS.forEach(c => { html += `<option value="${c.key}">${c.icon} ${c.name}</option>`; });
+    if (hint) hint.textContent = '💡 收入如：彩票中奖、接顺风车、报销退款等，会从总消费中扣除计算净支出。';
+  } else {
+    TRIP_CATS.forEach(c => {
+      if (c.sub) {
+        html += `<optgroup label="${c.icon} ${c.name}">`;
+        html += `<option value="${c.key}">${c.icon} ${c.name}（其他/未细分）</option>`;
+        c.sub.forEach(s => { html += `<option value="${s.key}">${s.icon} ${s.name}</option>`; });
+        html += '</optgroup>';
+      } else {
+        html += `<option value="${c.key}">${c.icon} ${c.name}</option>`;
+      }
+    });
+    if (hint) hint.textContent = '💡 交通可细分：打车/地铁/公交/动车/飞机/高速费/四轮租车费/二轮电动租车费/停车费/油费/电费；餐饮/门票/购物/娱乐也支持细分。';
+  }
+  select.innerHTML = html;
+}
+
 function confirmExpense() {
   const t = trips.find(x => x.id === currentTripId);
   if (!t) return;
+  const isIncome = editingRecordIsIncome || (document.querySelector('input[name="qm-e-type"][value="income"]') || {}).checked;
   const date = document.getElementById('qm-e-date').value;
   const amount = parseFloat(document.getElementById('qm-e-amount').value);
   const cat = document.getElementById('qm-e-cat').value;
-  const payerId = document.getElementById('qm-e-payer').value;
+  const memberId = document.getElementById('qm-e-payer').value;
   const desc = document.getElementById('qm-e-desc').value.trim();
   if (!date) { alert('请选择日期'); return; }
   if (isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
   if (editingExpenseId) {
-    const e = (t.expenses || []).find(x => x.id === editingExpenseId);
-    if (e) Object.assign(e, { date, amount, cat, payerId, desc });
+    const arr = editingRecordIsIncome ? (t.incomes || (t.incomes = [])) : (t.expenses || (t.expenses = []));
+    const rec = arr.find(x => x.id === editingExpenseId);
+    if (rec) Object.assign(rec, { date, amount, cat, desc, [editingRecordIsIncome ? 'receiverId' : 'payerId']: memberId });
   } else {
-    if (!t.expenses) t.expenses = [];
-    t.expenses.push({ id: Date.now(), date, amount, cat, payerId, desc });
+    const record = { id: Date.now(), date, amount, cat, desc };
+    if (isIncome) {
+      record.receiverId = memberId;
+      if (!t.incomes) t.incomes = [];
+      t.incomes.push(record);
+    } else {
+      record.payerId = memberId;
+      if (!t.expenses) t.expenses = [];
+      t.expenses.push(record);
+    }
   }
   saveTrips();
   document.getElementById('quick-modal').classList.remove('show');
@@ -6665,7 +6792,7 @@ function confirmExpense() {
 }
 
 function delTrip(id) {
-  if (!confirm('确定删除此账本？所有消费记录将一并删除')) return;
+  if (!confirm('确定删除此账本？所有记录将一并删除')) return;
   trips = trips.filter(t => t.id !== id);
   saveTrips();
   if (currentTripId === id) currentTripId = null;
@@ -6673,10 +6800,14 @@ function delTrip(id) {
 }
 
 function delExpense(id) {
-  if (!confirm('确定删除此笔消费？')) return;
+  if (!confirm('确定删除此笔记录？')) return;
   const t = trips.find(x => x.id === currentTripId);
   if (!t) return;
+  const before = (t.expenses || []).length;
   t.expenses = (t.expenses || []).filter(e => e.id !== id);
+  if (t.expenses.length === before) {
+    t.incomes = (t.incomes || []).filter(e => e.id !== id);
+  }
   saveTrips();
   renderTrips();
 }
