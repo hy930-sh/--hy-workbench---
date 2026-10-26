@@ -6237,23 +6237,23 @@ const TRIP_CATS = [
   { key: 'stay', name: '住宿', icon: '🏠' },
   { key: 'food', name: '餐饮', icon: '🍜', sub: [
     { key: 'food_local', name: '特色美食', icon: '🍲' },
+    { key: 'food_milktea', name: '奶茶', icon: '🧋' },
     { key: 'food_snack', name: '零食', icon: '🍪' }
   ]},
   { key: 'transport', name: '交通', icon: '🚗', sub: [
     { key: 'taxi', name: '打车', icon: '🚕' },
     { key: 'metro', name: '地铁', icon: '🚇' },
-    { key: 'bus', name: '公交', icon: '🚌' },
+    { key: 'bus', name: '公交/大巴', icon: '🚌' },
     { key: 'train', name: '动车', icon: '🚄' },
     { key: 'flight', name: '飞机', icon: '✈️' },
     { key: 'toll', name: '高速费', icon: '🛣️' },
     { key: 'rental_car', name: '四轮租车费', icon: '🚙' },
-    { key: 'rental_ebike', name: '二轮电动租车费', icon: '🛵' },
+    { key: 'rental_ebike', name: '二轮租车费', icon: '🛵' },
     { key: 'parking', name: '停车费', icon: '🅿️' },
     { key: 'fuel', name: '油费', icon: '⛽' },
     { key: 'charge', name: '电费', icon: '🔌' }
   ]},
   { key: 'ticket', name: '门票', icon: '🎫', sub: [
-    { key: 'ticket_entry', name: '门票', icon: '🎟️' },
     { key: 'ticket_guide', name: '讲解', icon: '🎙️' },
     { key: 'ticket_bus', name: '观光车/大巴', icon: '🚍' },
     { key: 'ticket_cable', name: '缆车', icon: '🚠' }
@@ -6290,6 +6290,10 @@ function getTripCatInfo(key) {
   if (key === 'rental') {
     const parent = TRIP_CATS.find(c => c.key === 'transport');
     return { key: 'rental', name: '租车费', icon: '🚙', parent };
+  }
+  // 兼容旧版门票子分类「门票」（已合并到父分类）
+  if (key === 'ticket_entry') {
+    return TRIP_CATS.find(c => c.key === 'ticket') || { key: 'ticket', name: '门票', icon: '🎫' };
   }
   for (const c of TRIP_CATS) {
     if (c.key === key) return c;
@@ -6389,6 +6393,27 @@ let currentTripId = null;
 let editingTripId = null;
 let editingExpenseId = null;
 let editingRecordIsIncome = false;
+let expandedTripCats = new Set(); // 消费分类统计中已展开的大类 key
+let tripMemberFilter = 'all'; // 收支明细的成员筛选
+
+// 无描述时，默认显示所选分类名称
+function tripRecordDefaultDesc(rec, isIncome) {
+  if (rec.desc && rec.desc.trim()) return rec.desc.trim();
+  const info = isIncome ? getIncomeCatInfo(rec.cat) : getTripCatInfo(rec.cat);
+  if (info.parent) return `${info.parent.name} / ${info.name}`;
+  return info.name;
+}
+
+function setTripMemberFilter(id) {
+  tripMemberFilter = id || 'all';
+  renderTrips();
+}
+
+function toggleTripCat(key) {
+  if (expandedTripCats.has(key)) expandedTripCats.delete(key);
+  else expandedTripCats.add(key);
+  renderTrips();
+}
 
 function renderTrips() {
   const box = document.getElementById('trip-list');
@@ -6441,7 +6466,7 @@ function renderTripCard(t) {
   </div>`;
 }
 
-function enterTripDetail(id) { currentTripId = id; renderTrips(); }
+function enterTripDetail(id) { currentTripId = id; tripMemberFilter = 'all'; renderTrips(); }
 function backToTripList() { currentTripId = null; renderTrips(); }
 
 function renderTripDetail(t) {
@@ -6480,23 +6505,29 @@ function renderTripDetail(t) {
   // 分类统计（子分类消费在父分类下方展开）
   const catEntries = TRIP_CATS.map(c => ({ ...c, data: stats.catMap[c.key] })).filter(x => x.data);
   if (catEntries.length > 0) {
-    html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>📂 消费分类统计</h3></div><div class="panel-body" style="padding:12px 20px;">`;
+    html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>📂 消费分类统计</h3><span style="font-size:11px;color:#909399;">点击大类可展开细化分类</span></div><div class="panel-body" style="padding:12px 20px;">`;
     catEntries.forEach(c => {
       const pct = stats.total > 0 ? (c.data.amount / stats.total * 100) : 0;
-      html += `<div class="trip-cat-row">
+      // 判断该大类是否有子分类消费
+      const hasSub = c.sub && c.sub.some(s => stats.subCatMap[s.key]);
+      const isOpen = expandedTripCats.has(c.key);
+      const chevron = hasSub ? `<span class="tc-chevron" style="width:16px;display:inline-block;text-align:center;color:#909399;transition:transform .2s;${isOpen ? 'transform:rotate(90deg);' : ''}">▶</span>` : '<span style="width:16px;display:inline-block;"></span>';
+      const clickable = hasSub ? `onclick="toggleTripCat('${c.key}')" style="cursor:pointer;"` : '';
+      html += `<div class="trip-cat-row" ${clickable}>
+        ${chevron}
         <span class="tc-icon">${c.icon}</span>
         <span class="tc-name">${c.name}</span>
         <div class="tc-bar"><div class="tc-bar-fill" style="width:${pct.toFixed(1)}%;"></div></div>
         <span class="tc-count">${c.data.count} 笔</span>
         <span class="tc-amount">¥${c.data.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(${pct.toFixed(1)}%)</small></span>
       </div>`;
-      // 若该分类下有子分类消费，展开显示子分类（按占总消费的百分比）
-      if (c.sub) {
+      // 仅当该大类有子分类消费且被展开时，显示子分类
+      if (hasSub && isOpen) {
         c.sub.forEach(s => {
           const sd = stats.subCatMap[s.key];
           if (!sd) return;
           const subPct = stats.total > 0 ? (sd.amount / stats.total * 100) : 0;
-          html += `<div class="trip-cat-row" style="padding-left:24px;background:rgba(102,126,234,0.04);">
+          html += `<div class="trip-cat-row" style="padding-left:36px;background:rgba(102,126,234,0.04);">
             <span class="tc-icon" style="font-size:14px;">↳ ${s.icon}</span>
             <span class="tc-name" style="color:#606266;font-size:12px;">${s.name}</span>
             <div class="tc-bar"><div class="tc-bar-fill" style="width:${subPct.toFixed(1)}%;background:linear-gradient(90deg, #fbc2eb, #a6c1ee);"></div></div>
@@ -6550,12 +6581,19 @@ function renderTripDetail(t) {
   // 打卡地点 & 美食（左右两栏）
   html += `<div class="punch-section">${renderPunchSection(t, 'place')}${renderPunchSection(t, 'food')}</div>`;
 
-  // 收支明细（支出 + 收入合并，按日期倒序）
-  html += `<div class="panel"><div class="panel-header"><h3>📒 收支明细</h3></div><div class="panel-body" style="padding:12px 20px;">`;
-  const allRecords = [
+  // 收支明细（支出 + 收入合并，按日期倒序，支持按成员筛选）
+  const memberOpts = (t.members || []).map(m => `<option value="${m.id}" ${tripMemberFilter === m.id ? 'selected' : ''}>${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
+  const filterSelect = (t.members || []).length > 1
+    ? `<span style="font-size:12px;color:#909399;">筛选成员：<select onchange="setTripMemberFilter(this.value)" style="font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid #dcdfe6;background:#fff;"><option value="all" ${tripMemberFilter==='all'?'selected':''}>全部成员</option>${memberOpts}</select></span>`
+    : '';
+  html += `<div class="panel"><div class="panel-header"><h3>📒 收支明细</h3>${filterSelect}</div><div class="panel-body" style="padding:12px 20px;">`;
+  let allRecords = [
     ...(t.expenses || []).map(e => ({ ...e, _type: 'expense' })),
     ...(t.incomes || []).map(i => ({ ...i, _type: 'income' }))
   ];
+  if (tripMemberFilter !== 'all') {
+    allRecords = allRecords.filter(r => (r._type === 'income' ? r.receiverId : r.payerId) === tripMemberFilter);
+  }
   if (allRecords.length === 0) {
     html += '<div class="empty" style="padding:20px;"><div class="icon">📒</div><p>还没有收支记录，点击右上角「+ 记一笔」</p></div>';
   } else {
@@ -6568,7 +6606,7 @@ function renderTripDetail(t) {
         const amt = parseFloat(r.amount) || 0;
         html += `<div class="trip-expense-row" style="background:rgba(82,196,26,0.04);">
           <div style="font-size:12px;">${r.date || '--'}</div>
-          <div>${escapeHtml(r.desc || '(无描述)')}
+          <div>${escapeHtml(tripRecordDefaultDesc(r, true))}
             <span style="float:right;display:inline-flex;gap:4px;">
               <span class="asset-action-btn" title="编辑" onclick="openExpenseModal(${r.id})" style="display:inline-flex;opacity:0.6;">✎</span>
               <span class="asset-action-btn" title="删除" onclick="delExpense(${r.id})" style="display:inline-flex;opacity:0.6;color:#ff4d4f;">✕</span>
@@ -6587,7 +6625,7 @@ function renderTripDetail(t) {
         const amt = parseFloat(r.amount) || 0;
         html += `<div class="trip-expense-row">
           <div style="font-size:12px;">${r.date || '--'}</div>
-          <div>${escapeHtml(r.desc || '(无描述)')}
+          <div>${escapeHtml(tripRecordDefaultDesc(r, false))}
             <span style="float:right;display:inline-flex;gap:4px;">
               <span class="asset-action-btn" title="编辑" onclick="openExpenseModal(${r.id})" style="display:inline-flex;opacity:0.6;">✎</span>
               <span class="asset-action-btn" title="删除" onclick="delExpense(${r.id})" style="display:inline-flex;opacity:0.6;color:#ff4d4f;">✕</span>
