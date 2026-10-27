@@ -6251,6 +6251,7 @@ const TRIP_CATS = [
     { key: 'bus', name: '公交/大巴', icon: '🚌' },
     { key: 'train', name: '动车', icon: '🚄' },
     { key: 'flight', name: '飞机', icon: '✈️' },
+    { key: 'bike', name: '共享单车', icon: '🚲' },
     { key: 'toll', name: '高速费', icon: '🛣️' },
     { key: 'rental_car', name: '四轮租车费', icon: '🚙' },
     { key: 'rental_ebike', name: '二轮租车费', icon: '🛵' },
@@ -6804,7 +6805,7 @@ function refreshTripCatOptions(isIncome) {
         html += `<option value="${c.key}">${c.icon} ${c.name}</option>`;
       }
     });
-    if (hint) hint.textContent = '💡 交通可细分：打车/地铁/公交/动车/飞机/高速费/四轮租车费/二轮电动租车费/停车费/油费/电费；餐饮/门票/购物/娱乐也支持细分。';
+    if (hint) hint.textContent = '💡 交通、餐饮、门票、购物、娱乐均支持细分，可按实际选择。';
   }
   select.innerHTML = html;
 }
