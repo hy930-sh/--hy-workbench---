@@ -6233,9 +6233,7 @@ function delChecklist(id) {
 }
 
 // ========== 我们 · 旅行账本 ==========
-// 账本结构：{ id, name, stamp(地点戳), cover(emoji), color, members:[{id,name,avatar}], expenses:[{id,date,cat,desc,amount,payerId}], createdAt }
-let trips = JSON.parse(localStorage.getItem('hy_trips') || '[]');
-function saveTrips() { localStorage.setItem('hy_trips', JSON.stringify(trips)); }
+// 账本结构：{ id, name, stamp(地点戳), cover(emoji), color, members:[{id,name,avatar}], expenses:[...], incomes:[...], transfers:[{id,date,fromMemberId,toMemberId,amount,desc}], createdAt }
 
 const TRIP_CATS = [
   { key: 'stay', name: '住宿', icon: '🏠' },
@@ -6283,13 +6281,43 @@ const TRIP_CATS = [
 const INCOME_CATS = [
   { key: 'lottery', name: '彩票中奖', icon: '🎰' },
   { key: 'carpool', name: '顺风车', icon: '🚗' },
-  { key: 'transfer', name: '成员转账', icon: '💸' },
   { key: 'refund', name: '报销/退款', icon: '💰' },
   { key: 'other_income', name: '其他收入', icon: '💵' }
 ];
 function getIncomeCatInfo(key) {
   return INCOME_CATS.find(c => c.key === key) || { key: key || 'other_income', name: '其他收入', icon: '💵' };
 }
+
+// 账本结构：... transfers:[{id,date,fromMemberId,toMemberId,amount,desc}]
+// 加载时把旧版记在收入里的「成员转账」迁移到 transfers
+function loadTrips() {
+  const raw = localStorage.getItem('hy_trips');
+  if (!raw) return [];
+  let list = [];
+  try { list = JSON.parse(raw) || []; } catch (e) { return []; }
+  list.forEach(t => {
+    if (!Array.isArray(t.transfers)) t.transfers = [];
+    if (Array.isArray(t.incomes)) {
+      const rest = [];
+      t.incomes.forEach(i => {
+        if (i.cat === 'transfer') {
+          // 旧数据：收入里的成员转账 → 迁移为转账记录（默认转给第一个成员或自己）
+          t.transfers.push({
+            id: i.id || Date.now() + Math.floor(Math.random()*1000),
+            date: i.date, amount: i.amount, desc: i.desc || '',
+            fromMemberId: null, toMemberId: i.receiverId
+          });
+        } else {
+          rest.push(i);
+        }
+      });
+      t.incomes = rest;
+    }
+  });
+  return list;
+}
+let trips = loadTrips();
+function saveTrips() { localStorage.setItem('hy_trips', JSON.stringify(trips)); }
 
 const TRIP_AVATARS = ['🐱', '🐶', '🐰', '🦊', '🐻', '🐯', '🐨', '🐼', '🐸', '🐵'];
 const TRIP_COVERS = ['🏔️', '🏖️', '🏝️', '🌋', '🏰', '🗽', '🎡', '🚂', '🚢', '🛕', '⛩️', '🕌', '⛪', '🌆', '🌅', '🌄', '🌃', '🏞️', '🌋', '⛺'];
@@ -6387,14 +6415,18 @@ function calcTripStats(trip) {
     incomeCatMap[k].amount += parseFloat(i.amount) || 0;
   });
   // 按成员聚合（净分摊：人均净支出 = (总消费 - 总收入) / 成员数）
+  // 转账不计入收支总额，但影响成员余额：转出方 paid 增加，转入方 received 增加
+  const transfers = trip.transfers || [];
   const members = trip.members || [];
   const perPerson = members.length ? netTotal / members.length : 0;
   const memberMap = {};
   members.forEach(m => {
     const paid = expenses.filter(e => e.payerId === m.id).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
     const received = incomes.filter(i => i.receiverId === m.id).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-    const balance = (paid - received) - perPerson;
-    memberMap[m.id] = { paid, received, consume: perPerson, balance };
+    const transferOut = transfers.filter(tr => tr.fromMemberId === m.id).reduce((s, tr) => s + (parseFloat(tr.amount) || 0), 0);
+    const transferIn = transfers.filter(tr => tr.toMemberId === m.id).reduce((s, tr) => s + (parseFloat(tr.amount) || 0), 0);
+    const balance = (paid + transferOut - received - transferIn) - perPerson;
+    memberMap[m.id] = { paid, received, transferOut, transferIn, consume: perPerson, balance };
   });
   return { total, count, totalIncome, incomeCount, netTotal, catMap, subCatMap, incomeCatMap, memberMap, perPerson, days, perDay };
 }
@@ -6403,6 +6435,7 @@ let currentTripId = null;
 let editingTripId = null;
 let editingExpenseId = null;
 let editingRecordIsIncome = false;
+let editingRecordIsTransfer = false;
 let expandedTripCats = new Set(); // 消费分类统计中已展开的大类 key
 let tripMemberFilter = 'all'; // 收支明细的成员筛选
 
@@ -6586,9 +6619,34 @@ function renderTripDetail(t) {
         <div class="tm-avatar">${m.avatar || '🐱'}</div>
         <div class="tm-info">
           <div>${escapeHtml(m.name || '成员')}</div>
-          <div class="tm-sub">付款 ¥${ms.paid.toFixed(2)}${ms.received > 0 ? ` · 收入 ¥${ms.received.toFixed(2)}` : ''} · 分摊 ¥${ms.consume.toFixed(2)}</div>
+          <div class="tm-sub">付款 ¥${ms.paid.toFixed(2)}${ms.received > 0 ? ` · 收入 ¥${ms.received.toFixed(2)}` : ''}${(ms.transferOut||0) > 0 ? ` · 转出 ¥${ms.transferOut.toFixed(2)}` : ''}${(ms.transferIn||0) > 0 ? ` · 转入 ¥${ms.transferIn.toFixed(2)}` : ''} · 分摊 ¥${ms.consume.toFixed(2)}</div>
         </div>
         ${badge}
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+
+  // 成员转账明细（不计入收支总额，仅记录成员间资金流转）
+  const transfers = t.transfers || [];
+  if (transfers.length > 0) {
+    html += `<div class="panel" style="margin-bottom:16px;"><div class="panel-header"><h3>💸 成员转账</h3><span style="font-size:11px;color:#909399;">不计入收支，仅影响成员结算</span></div><div class="panel-body" style="padding:12px 20px;">`;
+    const sorted = [...transfers].sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
+    html += '<div class="trip-expense-row te-head"><div>日期</div><div>转出</div><div>转入</div><div>金额</div><div>说明</div><div>操作</div></div>';
+    sorted.forEach(tr => {
+      const from = (t.members || []).find(m => m.id === tr.fromMemberId);
+      const to = (t.members || []).find(m => m.id === tr.toMemberId);
+      const amt = parseFloat(tr.amount) || 0;
+      html += `<div class="trip-expense-row" style="background:rgba(250,140,22,0.04);">
+        <div style="font-size:12px;">${tr.date || '--'}</div>
+        <div>${from ? from.avatar + ' ' + escapeHtml(from.name) : '--'}</div>
+        <div>→ ${to ? to.avatar + ' ' + escapeHtml(to.name) : '--'}</div>
+        <div style="color:#fa8c16;font-weight:600;">¥${amt.toFixed(2)}</div>
+        <div style="font-size:12px;color:#606266;flex:1;min-width:80px;">${escapeHtml(tr.desc || '成员转账')}</div>
+        <div style="display:inline-flex;gap:4px;">
+          <span class="asset-action-btn" title="编辑" onclick="openExpenseModal(${tr.id})" style="display:inline-flex;opacity:0.6;">✎</span>
+          <span class="asset-action-btn" title="删除" onclick="delExpense(${tr.id})" style="display:inline-flex;opacity:0.6;color:#ff4d4f;">✕</span>
+        </div>
       </div>`;
     });
     html += '</div></div>';
@@ -6746,55 +6804,75 @@ function confirmTrip() {
   renderTrips();
 }
 
-// 记一笔（支出 / 收入）
+// 记一笔（支出 / 收入 / 转账）
 function openExpenseModal(id) {
   if (!currentTripId) { alert('请先进入账本详情'); return; }
   const t = trips.find(x => x.id === currentTripId);
   if (!t) return;
   editingExpenseId = id || null;
   editingRecordIsIncome = false;
+  editingRecordIsTransfer = false;
   let rec = null;
+  let type = 'expense';
   if (id) {
     rec = (t.expenses || []).find(x => x.id === id);
-    if (!rec) { rec = (t.incomes || []).find(x => x.id === id); editingRecordIsIncome = !!rec; }
+    if (!rec) { rec = (t.incomes || []).find(x => x.id === id); editingRecordIsIncome = !!rec; type = rec ? 'income' : type; }
+    if (!rec) { rec = (t.transfers || []).find(x => x.id === id); editingRecordIsTransfer = !!rec; type = rec ? 'transfer' : type; }
   }
-  document.getElementById('qm-title').textContent = rec ? (editingRecordIsIncome ? '编辑收入' : '编辑消费') : '记一笔';
-  const memberOpts = (t.members || []).map(m => `<option value="${m.id}" ${rec && (rec.payerId || rec.receiverId) === m.id ? 'selected' : ''}>${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
+  const titleMap = { expense: '编辑消费', income: '编辑收入', transfer: '编辑转账' };
+  document.getElementById('qm-title').textContent = rec ? titleMap[type] : '记一笔';
+  const memberOpts = (t.members || []).map(m => `<option value="${m.id}">${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
   const today = fmtTripDate(Date.now());
   const isEditing = !!rec;
+  const memberSel = (id, sel) => (t.members || []).map(m => `<option value="${m.id}" ${sel === m.id ? 'selected' : ''}>${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
   document.getElementById('qm-body').innerHTML = `
     <div class="form-row" style="${isEditing ? 'display:none;' : 'display:flex;gap:12px;align-items:center;background:#f7f8fc;padding:10px 14px;border-radius:8px;'}">
       <label style="font-size:13px;font-weight:600;">类型：</label>
-      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="expense" ${!editingRecordIsIncome ? 'checked' : ''} onchange="refreshTripCatOptions(false)"> 支出</label>
-      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="income" ${editingRecordIsIncome ? 'checked' : ''} onchange="refreshTripCatOptions(true)"> 收入</label>
+      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="expense" ${type==='expense' ? 'checked' : ''} onchange="refreshTripForm('expense')"> 支出</label>
+      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="income" ${type==='income' ? 'checked' : ''} onchange="refreshTripForm('income')"> 收入</label>
+      <label style="cursor:pointer;font-size:13px;"><input type="radio" name="qm-e-type" value="transfer" ${type==='transfer' ? 'checked' : ''} onchange="refreshTripForm('transfer')"> 转账</label>
       ${isEditing ? '<span style="font-size:11px;color:#909399;">（编辑时不可切换类型）</span>' : ''}
     </div>
     <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div><label>日期 *</label><input type="date" id="qm-e-date" value="${rec ? rec.date : today}"></div>
       <div><label>金额(元) *</label><input type="number" step="0.01" id="qm-e-amount" placeholder="如：120.5" value="${rec ? rec.amount : ''}"></div>
     </div>
-    <div class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div id="qm-e-cat-row" class="form-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div><label>分类</label><select id="qm-e-cat"></select></div>
-      <div><label id="qm-e-payer-label">${editingRecordIsIncome ? '收款人' : '付款人'}</label><select id="qm-e-payer">${memberOpts}</select></div>
+      <div><label id="qm-e-payer-label">付款人</label><select id="qm-e-payer">${memberOpts}</select></div>
     </div>
-    <div class="form-row"><label>内容/描述</label><input type="text" id="qm-e-desc" placeholder="如：民宿两晚 / 彩票中奖 50 元" value="${rec ? escapeHtml(rec.desc || '') : ''}"></div>
+    <div id="qm-e-transfer-row" class="form-row" style="display:none;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><label>转出成员</label><select id="qm-e-from">${memberSel('qm-e-from', rec && rec.fromMemberId)}</select></div>
+      <div><label>转入成员</label><select id="qm-e-to">${memberSel('qm-e-to', rec && rec.toMemberId)}</select></div>
+    </div>
+    <div class="form-row"><label>内容/描述（可选）</label><input type="text" id="qm-e-desc" placeholder="如：民宿两晚 / 彩票中奖 50 元 / 帮垫付房费" value="${rec ? escapeHtml(rec.desc || '') : ''}"></div>
     <p style="font-size:11px;color:#909399;margin-top:-4px;" id="qm-e-hint"></p>
   `;
-  refreshTripCatOptions(editingRecordIsIncome);
+  refreshTripForm(type);
   document.getElementById('qm-confirm').onclick = confirmExpense;
   document.getElementById('qm-confirm').textContent = '确定';
   document.getElementById('quick-modal').classList.add('show');
 }
 
-// 根据收支类型刷新分类下拉
-function refreshTripCatOptions(isIncome) {
+// 根据类型刷新表单（分类下拉 / 付款人 / 转账双方）
+function refreshTripForm(type) {
+  const catRow = document.getElementById('qm-e-cat-row');
+  const transferRow = document.getElementById('qm-e-transfer-row');
   const select = document.getElementById('qm-e-cat');
   const payerLabel = document.getElementById('qm-e-payer-label');
   const hint = document.getElementById('qm-e-hint');
-  if (payerLabel) payerLabel.textContent = isIncome ? '收款人' : '付款人';
+  if (type === 'transfer') {
+    if (catRow) catRow.style.display = 'none';
+    if (transferRow) transferRow.style.display = 'grid';
+    if (hint) hint.textContent = '💡 成员间转账不计入收支总额，仅影响双方余额结算（转出方应收增加，转入方应付增加）。';
+    return;
+  }
+  if (catRow) catRow.style.display = 'grid';
+  if (transferRow) transferRow.style.display = 'none';
+  if (payerLabel) payerLabel.textContent = type === 'income' ? '收款人' : '付款人';
   if (!select) return;
   let html = '';
-  if (isIncome) {
+  if (type === 'income') {
     INCOME_CATS.forEach(c => { html += `<option value="${c.key}">${c.icon} ${c.name}</option>`; });
     if (hint) hint.textContent = '💡 收入如：彩票中奖、接顺风车、报销退款等，会从总消费中扣除计算净支出。';
   } else {
@@ -6816,28 +6894,37 @@ function refreshTripCatOptions(isIncome) {
 function confirmExpense() {
   const t = trips.find(x => x.id === currentTripId);
   if (!t) return;
-  const isIncome = editingRecordIsIncome || (document.querySelector('input[name="qm-e-type"][value="income"]') || {}).checked;
+  const typeRadio = document.querySelector('input[name="qm-e-type"]:checked');
+  const type = editingRecordIsTransfer ? 'transfer' : (editingRecordIsIncome ? 'income' : (typeRadio ? typeRadio.value : 'expense'));
   const date = document.getElementById('qm-e-date').value;
   const amount = parseFloat(document.getElementById('qm-e-amount').value);
-  const cat = document.getElementById('qm-e-cat').value;
-  const memberId = document.getElementById('qm-e-payer').value;
   const desc = document.getElementById('qm-e-desc').value.trim();
   if (!date) { alert('请选择日期'); return; }
   if (isNaN(amount) || amount < 0) { alert('请输入有效金额'); return; }
-  if (editingExpenseId) {
-    const arr = editingRecordIsIncome ? (t.incomes || (t.incomes = [])) : (t.expenses || (t.expenses = []));
-    const rec = arr.find(x => x.id === editingExpenseId);
-    if (rec) Object.assign(rec, { date, amount, cat, desc, [editingRecordIsIncome ? 'receiverId' : 'payerId']: memberId });
-  } else {
-    const record = { id: Date.now(), date, amount, cat, desc };
-    if (isIncome) {
-      record.receiverId = memberId;
-      if (!t.incomes) t.incomes = [];
-      t.incomes.push(record);
+  if (type === 'transfer') {
+    const fromMemberId = document.getElementById('qm-e-from').value;
+    const toMemberId = document.getElementById('qm-e-to').value;
+    if (!fromMemberId || !toMemberId) { alert('请选择转出和转入成员'); return; }
+    if (fromMemberId === toMemberId) { alert('转出和转入成员不能相同'); return; }
+    if (editingExpenseId) {
+      const rec = (t.transfers || []).find(x => x.id === editingExpenseId);
+      if (rec) Object.assign(rec, { date, amount, desc, fromMemberId, toMemberId });
     } else {
-      record.payerId = memberId;
-      if (!t.expenses) t.expenses = [];
-      t.expenses.push(record);
+      if (!t.transfers) t.transfers = [];
+      t.transfers.push({ id: Date.now(), date, amount, desc, fromMemberId, toMemberId });
+    }
+  } else {
+    const cat = document.getElementById('qm-e-cat').value;
+    const memberId = document.getElementById('qm-e-payer').value;
+    const isIncome = type === 'income';
+    if (editingExpenseId) {
+      const arr = isIncome ? (t.incomes || (t.incomes = [])) : (t.expenses || (t.expenses = []));
+      const rec = arr.find(x => x.id === editingExpenseId);
+      if (rec) Object.assign(rec, { date, amount, cat, desc, [isIncome ? 'receiverId' : 'payerId']: memberId });
+    } else {
+      const record = { id: Date.now(), date, amount, cat, desc };
+      if (isIncome) { record.receiverId = memberId; if (!t.incomes) t.incomes = []; t.incomes.push(record); }
+      else { record.payerId = memberId; if (!t.expenses) t.expenses = []; t.expenses.push(record); }
     }
   }
   saveTrips();
@@ -6860,7 +6947,11 @@ function delExpense(id) {
   const before = (t.expenses || []).length;
   t.expenses = (t.expenses || []).filter(e => e.id !== id);
   if (t.expenses.length === before) {
+    const beforeInc = (t.incomes || []).length;
     t.incomes = (t.incomes || []).filter(e => e.id !== id);
+    if (t.incomes.length === beforeInc) {
+      t.transfers = (t.transfers || []).filter(e => e.id !== id);
+    }
   }
   saveTrips();
   renderTrips();
