@@ -6255,7 +6255,8 @@ const TRIP_CATS = [
     { key: 'parking', name: '停车费', icon: '🅿️' },
     { key: 'rental_ebike', name: '二轮租车费', icon: '🛵' },
     { key: 'rental_car', name: '四轮租车费', icon: '🚙' },
-    { key: 'fuel', name: '油费', icon: '⛽' }
+    { key: 'fuel', name: '油费', icon: '⛽' },
+    { key: 'maintenance', name: '维修/洗车', icon: '🔧' }
   ]},
   { key: 'ticket', name: '门票', icon: '🎫', sub: [
     { key: 'ticket_guide', name: '讲解', icon: '🎙️' },
@@ -6272,7 +6273,8 @@ const TRIP_CATS = [
     { key: 'fun_play', name: '娱乐', icon: '🕹️' },
     { key: 'fun_photo', name: '付费拍照', icon: '📸' },
     { key: 'fun_makeup', name: '写真妆造', icon: '💄' },
-    { key: 'fun_lottery', name: '彩票', icon: '🎰' }
+    { key: 'fun_lottery', name: '彩票', icon: '🎰' },
+    { key: 'fun_app', name: 'app会员', icon: '📱' }
   ]},
   { key: 'other', name: '其他', icon: '📦' }
 ];
@@ -6566,22 +6568,32 @@ function renderTripDetail(t) {
         <span class="tc-count">${c.data.count} 笔</span>
         <span class="tc-amount">¥${c.data.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(${pct.toFixed(1)}%)</small></span>
       </div>`;
-      // 仅当该大类有子分类消费且被展开时，显示子分类（按金额降序）
+      // 仅当该大类有子分类消费且被展开时，显示子分类（含未细分项，按金额降序）
       if (hasSub && isOpen) {
         const subList = c.sub
           .map(s => ({ s, sd: stats.subCatMap[s.key] }))
           .filter(x => x.sd)
           .sort((a, b) => b.sd.amount - a.sd.amount);
-        subList.forEach(({ s, sd }) => {
-          const subPctOfParent = c.data.amount > 0 ? (sd.amount / c.data.amount * 100) : 0;
-          const subPctOfTotal = stats.total > 0 ? (sd.amount / stats.total * 100) : 0;
+        // 大类下直接记账（未选细化分类）的金额 = 大类总额 - 各细化项合计
+        const subAmountSum = subList.reduce((sum, x) => sum + x.sd.amount, 0);
+        const subCountSum = subList.reduce((sum, x) => sum + x.sd.count, 0);
+        const remainAmount = c.data.amount - subAmountSum;
+        const remainCount = c.data.count - subCountSum;
+        const rows = subList.map(({ s, sd }) => ({ icon: s.icon, name: s.name, amount: sd.amount, count: sd.count }));
+        if (remainAmount > 0.005 || remainCount > 0) {
+          rows.push({ icon: c.icon, name: '其他/未细分', amount: remainAmount, count: remainCount });
+        }
+        rows.sort((a, b) => b.amount - a.amount);
+        rows.forEach(r => {
+          const subPctOfParent = c.data.amount > 0 ? (r.amount / c.data.amount * 100) : 0;
+          const subPctOfTotal = stats.total > 0 ? (r.amount / stats.total * 100) : 0;
           html += `<div class="trip-cat-row" style="padding-left:36px;background:rgba(102,126,234,0.04);">
             <span style="width:20px;display:inline-block;"></span>
-            <span class="tc-icon" style="font-size:14px;">↳ ${s.icon}</span>
-            <span class="tc-name" style="color:#606266;font-size:12px;">${s.name}</span>
+            <span class="tc-icon" style="font-size:14px;">↳ ${r.icon}</span>
+            <span class="tc-name" style="color:#606266;font-size:12px;">${r.name}</span>
             <div class="tc-bar"><div class="tc-bar-fill" style="width:${subPctOfTotal.toFixed(1)}%;background:linear-gradient(90deg, #fbc2eb, #a6c1ee);"></div></div>
-            <span class="tc-count">${sd.count} 笔</span>
-            <span class="tc-amount" style="color:#d4380d;font-weight:500;width:auto;white-space:nowrap;">¥${sd.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(占${c.name} ${subPctOfParent.toFixed(1)}% · 总 ${subPctOfTotal.toFixed(1)}%)</small></span>
+            <span class="tc-count">${r.count} 笔</span>
+            <span class="tc-amount" style="color:#d4380d;font-weight:500;width:auto;white-space:nowrap;">¥${r.amount.toFixed(2)} <small style="font-size:10px;color:#909399;font-weight:400;">(占${c.name} ${subPctOfParent.toFixed(1)}% · 总 ${subPctOfTotal.toFixed(1)}%)</small></span>
           </div>`;
         });
       }
@@ -6619,7 +6631,7 @@ function renderTripDetail(t) {
         <div class="tm-avatar">${m.avatar || '🐱'}</div>
         <div class="tm-info">
           <div>${escapeHtml(m.name || '成员')}</div>
-          <div class="tm-sub">付款 ¥${ms.paid.toFixed(2)}${ms.received > 0 ? ` · 收入 ¥${ms.received.toFixed(2)}` : ''}${(ms.transferOut||0) > 0 ? ` · 转出 ¥${ms.transferOut.toFixed(2)}` : ''}${(ms.transferIn||0) > 0 ? ` · 转入 ¥${ms.transferIn.toFixed(2)}` : ''} · 分摊 ¥${ms.consume.toFixed(2)}</div>
+          <div class="tm-sub">付款 ¥${ms.paid.toFixed(2)}${stats.total > 0 ? ` (占${(ms.paid / stats.total * 100).toFixed(1)}%)` : ''}${ms.received > 0 ? ` · 收入 ¥${ms.received.toFixed(2)}` : ''}${(ms.transferOut||0) > 0 ? ` · 转出 ¥${ms.transferOut.toFixed(2)}` : ''}${(ms.transferIn||0) > 0 ? ` · 转入 ¥${ms.transferIn.toFixed(2)}` : ''} · 分摊 ¥${ms.consume.toFixed(2)}</div>
         </div>
         ${badge}
       </div>`;
