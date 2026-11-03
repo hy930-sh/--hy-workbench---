@@ -4756,6 +4756,9 @@ const EP_PHASE1_DEFAULTS = {
   lygBase: 'file:///F:/学习/3、2026福建事业编课程-公基-下午/2026年福建事业单位公基系统班/',
   fbFiles: [],
   lygFiles: [],
+  // 未完成课程的起始锚点（时间戳）。已完成课归档，新打勾一课就推进到下一个学习时段
+  nextStartTs: 0,
+  // 旧数据迁移用
   anchorTs: 0,
   progress: {}
 };
@@ -4812,138 +4815,148 @@ function epNextStudySlot(fromTs) {
   return null;
 }
 
-// 排程：基于锚点生成所有课程 → 目标日期映射
-// 返回数组 [{ key, module, idx, slotTs, isAM, done, videoUrl, videoName }]
-function epPhase1GenerateSchedule() {
+// 构建"未完成课程"的自然顺序列表（上午 fb / 下午 lyg 配对，公基完了下午也排 fb）
+// 不含 slot 时间，只负责课程顺序与视频元数据
+function epPhase1BuildPendingCourses() {
   const st = epPhase1State;
-  if (!st.anchorTs) return [];
   const fbTotal = st.fbTotal || 34;
   const lygTotal = st.lygTotal || 21;
-  // 构建课程顺序：先"上午 fb / 下午 lyg"配对 lygTotal 次，再"上午 fb / 下午 fb"配对 (fbTotal - lygTotal) 次
-  const slots = [];
-  let nextTs = st.anchorTs;
-  // 第一轮：lygTotal 个"上午职测 + 下午公基"
-  for (let i = 1; i <= lygTotal; i++) {
-    const morning = epNextStudySlot(nextTs - 60000); // -1min 避免边界问题
-    if (!morning) break;
-    const evening = epNextStudySlot(morning.ts + 60000);
-    if (!evening) break;
-    slots.push({ kind: 'morning', slotTs: morning.ts, isAM: true, key: 'fb-' + i, module: 'fb', idx: i });
-    slots.push({ kind: 'evening', slotTs: evening.ts, isAM: false, key: 'lyg-' + i, module: 'lyg', idx: i });
-    nextTs = evening.ts + 60000;
-  }
-  // 第二轮：公基完了，继续排职测（剩余 fbTotal - lygTotal 个课时，继续上午一个下午一个）
-  const remain = Math.max(0, fbTotal - lygTotal);
-  for (let i = 1; i <= remain; i++) {
-    const morning = epNextStudySlot(nextTs - 60000);
-    if (!morning) break;
-    const evening = epNextStudySlot(morning.ts + 60000);
-    if (!evening) break;
-    // 上午是 fb 的第 (lygTotal + i) 课，key = fb-(lygTotal+i)
-    slots.push({ kind: 'morning', slotTs: morning.ts, isAM: true, key: 'fb-' + (lygTotal + i), module: 'fb', idx: lygTotal + i });
-    slots.push({ kind: 'evening', slotTs: evening.ts, isAM: false, key: 'fb2-' + i, module: 'fb2', idx: lygTotal + i });
-    nextTs = evening.ts + 60000;
-  }
-
-  // 合并课程元数据（文件列表 & 完成状态）
+  const progress = st.progress || {};
   const fbFiles = st.fbFiles || [];
   const lygFiles = st.lygFiles || [];
-  return slots.map(s => {
-    const progress = st.progress && st.progress[s.key];
-    let videoUrl = '';
-    let videoName = '';
-    if (s.module === 'fb') {
-      videoName = fbFiles[s.idx - 1] || `粉笔职测 第${s.idx}课`;
-      videoUrl = st.fbBase || '';
-    } else if (s.module === 'fb2') {
-      videoName = fbFiles[s.idx - 1] || `粉笔职测 第${s.idx}课（下午）`;
-      videoUrl = st.fbBase || '';
-    } else if (s.module === 'lyg') {
-      videoName = lygFiles[s.idx - 1] || `林英公基 第${s.idx}课`;
-      videoUrl = st.lygBase || '';
-    }
-    // 拼成完整 URL：如果 videoName 是完整 file:/// 路径就直接用；否则 base + videoName
-    // 对中文、空格、# 等字符编码
-    let fullUrl = '';
-    if (/^[a-zA-Z]:\\/.test(videoName) || /^file:\/\//i.test(videoName)) {
-      // 已是完整路径，只编码 path 部分
-      fullUrl = encodeURI(videoName);
-    } else if (videoUrl && videoName) {
-      const base = videoUrl.replace(/\/$/, '');
-      const full = base + '/' + videoName;
-      // 找到 scheme 后的 / 开始编码 path
-      const m = full.match(/^([a-zA-Z][a-zA-Z0-9+-.]*:\/\/[^/]+)(\/.*)$/);
-      if (m) fullUrl = m[1] + encodeURI(m[2]);
-      else fullUrl = encodeURI(full);
-    }
-    return Object.assign({}, s, {
-      done: !!(progress && progress.done),
-      completedAt: progress ? progress.completedAt : null,
-      videoName, videoUrl, fullUrl
-    });
+
+  // 自然顺序
+  const keys = [];
+  // 第一轮：lygTotal 对 (上午fb / 下午lyg)
+  for (let i = 1; i <= lygTotal; i++) {
+    keys.push({ key: 'fb-' + i, module: 'fb', idx: i });
+    keys.push({ key: 'lyg-' + i, module: 'lyg', idx: i });
+  }
+  // 第二轮：剩余 (上午fb / 下午fb)
+  const remain = fbTotal - lygTotal;
+  for (let i = 1; i <= remain; i++) {
+    keys.push({ key: 'fb-' + (lygTotal + i), module: 'fb', idx: lygTotal + i });
+    keys.push({ key: 'fb2-' + i, module: 'fb2', idx: lygTotal + i });
+  }
+
+  // 过滤：只保留未完成的
+  return keys
+    .map(c => {
+      const prog = progress[c.key];
+      const done = !!(prog && prog.status === 'done');
+      if (done) return null;
+      let videoName = '';
+      let videoBase = '';
+      if (c.module === 'fb') {
+        videoName = fbFiles[c.idx - 1] || `粉笔职测 第${c.idx}课`;
+        videoBase = st.fbBase || '';
+      } else if (c.module === 'lyg') {
+        videoName = lygFiles[c.idx - 1] || `林英公基 第${c.idx}课`;
+        videoBase = st.lygBase || '';
+      } else {
+        videoName = fbFiles[c.idx - 1] || `粉笔职测 第${c.idx}课`;
+        videoBase = st.fbBase || '';
+      }
+      let fullUrl = '';
+      if (videoBase && videoName) {
+        const base = videoBase.replace(/\/$/, '');
+        const full = base + '/' + videoName;
+        const m = full.match(/^([a-zA-Z][a-zA-Z0-9+-.]*:\/\/[^/]+)(\/.*)$/);
+        if (m) fullUrl = m[1] + encodeURI(m[2]);
+        else fullUrl = encodeURI(full);
+      }
+      return Object.assign({}, c, { videoName, fullUrl });
+    })
+    .filter(Boolean);
+}
+
+// 已完成课程汇总
+function epPhase1GetDoneStats() {
+  const st = epPhase1State;
+  const progress = st.progress || {};
+  let fbDone = 0, lygDone = 0, fb2Done = 0, fbFilesDone = new Set();
+  const doneKeys = [];
+  Object.keys(progress).forEach(k => {
+    if (progress[k].status !== 'done') return;
+    doneKeys.push(k);
+    if (k.startsWith('fb-') && !k.startsWith('fb2-')) {
+      fbDone++;
+      fbFilesDone.add(parseInt(k.split('-')[1]));
+    } else if (k.startsWith('lyg-')) lygDone++;
+    else if (k.startsWith('fb2-')) fb2Done++;
+  });
+  return { fbDone, lygDone, fb2Done, doneKeys };
+}
+
+// 生成"未完成课程"排程：从 nextStartTs 开始依次填 slot
+function epPhase1GenerateSchedule() {
+  const st = epPhase1State;
+  // 首次：nextStartTs=0 → 用今天的第一个学习时段
+  if (!st.nextStartTs) {
+    const first = epNextStudySlot(new Date().getTime());
+    st.nextStartTs = first ? first.ts : 0;
+    saveEpPhase1();
+  }
+  // 每天自动检查：如果 nextStartTs 指向的 slot < 今天 → 推到今天
+  const today00 = new Date(); today00.setHours(0, 0, 0, 0);
+  const firstSlotIsPast = !!(st.nextStartTs && st.nextStartTs < today00.getTime());
+  if (firstSlotIsPast) {
+    const first = epNextStudySlot(today00.getTime());
+    st.nextStartTs = first ? first.ts : st.nextStartTs;
+    saveEpPhase1();
+  }
+
+  const courses = epPhase1BuildPendingCourses();
+  let nextTs = st.nextStartTs;
+  return courses.map(c => {
+    const slot = epNextStudySlot(nextTs - 60000);
+    if (!slot) return Object.assign({}, c, { slotTs: 0, isAM: false });
+    nextTs = slot.ts + 60000;
+    return Object.assign({}, c, { slotTs: slot.ts, isAM: slot.am, done: false });
   });
 }
 
-// 自动推迟：如果今天已过某课目标日期但未完成，把锚点调整为"让未完成课从今天开始排"
-function epPhase1AutoAdjustAnchor() {
-  const st = epPhase1State;
-  if (!st.anchorTs) {
-    // 没锚点就从今天开始排
-    const start = epPhase1FindFirstAnchor(new Date().getTime());
-    if (start) { st.anchorTs = start; saveEpPhase1(); }
-    return;
-  }
-  const today00 = new Date(); today00.setHours(0, 0, 0, 0);
-  const today = today00.getTime();
-  const schedule = epPhase1GenerateSchedule();
-  // 找所有 目标日期 < 今天 && 未完成 的课
-  const overdue = schedule.filter(s => !s.done && s.slotTs < today);
-  if (overdue.length === 0) return;
-  // 重新设置锚点 = 让"第一个未完成课"从今天的学习时段开始
-  const firstUndone = schedule.find(s => !s.done);
-  if (!firstUndone) return;
-  // 找到"排程中这个课前面的已完成课数量"（即偏移量）
-  const offset = schedule.findIndex(s => s === firstUndone);
-  // 新锚点：从今天开始，倒推 offset 个时段的起点... 更简单方式：直接算"新锚点 = 让 offset 个课在今天之前完成"
-  // 直接用 epNextStudySlot 从今天往后找第一个学习时段作为锚点
-  const firstSlot = epNextStudySlot(today);
-  if (!firstSlot) return;
-  st.anchorTs = firstSlot.ts;
-  saveEpPhase1();
-}
-
-// 找合适的锚点：从 fromTs 开始，跳过之前的时段，返回"第一个学习时段"作为锚点
-function epPhase1FindFirstAnchor(fromTs) {
-  return epNextStudySlot(fromTs) ? epNextStudySlot(fromTs).ts : 0;
-}
-
-// 切换完成状态（打勾/打叉/重置）
+// 切完成状态
+// 规则：
+//  - 当前未完成 → 标记完成，nextStartTs = "当前 nextStartTs 之后的第一个学习时段"
+//    （也就是跳过"下一课"，让当前 nextStartTs 往后移一格，下一课顶上来）
+//  - 当前已完成 → 取消完成，nextStartTs 不变
 function epPhase1Toggle(key) {
   const st = epPhase1State;
   if (!st.progress) st.progress = {};
   const cur = st.progress[key];
-  let next;
-  if (!cur) next = { done: true, completedAt: Date.now() };
-  else if (cur.done) next = { done: false };       // 打叉
-  else next = { done: true, completedAt: Date.now() }; // 再点即打勾
-  st.progress[key] = next;
+  const wasDone = !!(cur && cur.status === 'done');
+  const nextStartBefore = st.nextStartTs;
+
+  if (wasDone) {
+    // 取消完成 → 这一课回到排程，nextStartTs 保持不变，这一课会出现在课程表里
+    st.progress[key] = { status: 'pending' };
+  } else {
+    // 标记完成 → nextStartTs 往前推进一格（让当前这课不再排，后面的顶上来）
+    // 找 nextStartTs 之后的第一个学习时段
+    const firstAfter = epNextStudySlot(st.nextStartTs + 60000);
+    if (firstAfter) st.nextStartTs = firstAfter.ts;
+    st.progress[key] = { status: 'done', completedAt: Date.now() };
+  }
   saveEpPhase1();
-  epPhase1AutoAdjustAnchor();
+  // 迁移旧字段
+  if (st.anchorTs) { delete st.anchorTs; saveEpPhase1(); }
   renderEpPhase1();
+  showStatus(wasDone ? '已取消完成，重新加入课程表' : '✅ 已完成！下一课自动顶上来', 'success');
 }
 
-// 手动重排：把锚点设为"今天的第一个学习时段"
+// 手动重排：nextStartTs 设为今天（或指定日期）
 function resetEpPhase1Progress() {
-  if (!confirm('确定把全部课程重新从今天开始排吗？\n（已完成状态会保留，只是目标日期整体前移/后移）')) return;
-  const st = epPhase1State;
-  // 清除所有进度中未完成的记录（保留 done: true 的）
-  Object.keys(st.progress || {}).forEach(k => {
-    if (!st.progress[k].done) delete st.progress[k];
+  if (!confirm('确定把所有未完成课程从今天开始排吗？\n（已完成状态会保留，未完成会全部回到课程表里）')) return;
+  const first = epNextStudySlot(new Date().getTime());
+  epPhase1State.nextStartTs = first ? first.ts : epPhase1State.nextStartTs;
+  // 把所有 fail 状态清除（回到 pending）
+  Object.keys(epPhase1State.progress || {}).forEach(k => {
+    if (epPhase1State.progress[k].status !== 'done') delete epPhase1State.progress[k];
   });
   saveEpPhase1();
-  epPhase1AutoAdjustAnchor();
   renderEpPhase1();
-  showStatus('已从今天重新排好，未完成的课都往前挪了', 'success');
+  showStatus('已从今天重新排好', 'success');
 }
 
 // 渲染阶段一面板（课程表 / 列表）
@@ -4951,40 +4964,55 @@ function renderEpPhase1() {
   const box = document.getElementById('ep-phase1-content');
   if (!box) return;
   const st = epPhase1State;
-  if (!st.anchorTs) {
-    box.innerHTML = `<div style="padding:20px;text-align:center;color:#909399;">
-      <div style="font-size:30px;margin-bottom:10px;">📅</div>
-      <div style="margin-bottom:12px;">还没有开始排阶段一计划</div>
-      <button class="btn btn-primary btn-sm" onclick="epPhase1StartNow()">🚀 从今天开始排</button>
-      <div style="margin-top:8px;">或 <button class="btn btn-ghost btn-sm" onclick="editEpPhase1Videos()">✏️ 先编辑课程/路径</button></div>
-    </div>`;
-    return;
+  // 触发 nextStartTs 自动初始化
+  if (!st.nextStartTs) {
+    const first = epNextStudySlot(new Date().getTime());
+    st.nextStartTs = first ? first.ts : 0;
+    // 迁移旧数据：如果存在 anchorTs，用它作为起点
+    if (st.anchorTs && st.anchorTs > 0) st.nextStartTs = st.anchorTs;
+    saveEpPhase1();
   }
+
   const schedule = epPhase1GenerateSchedule();
-  if (schedule.length === 0) {
-    box.innerHTML = '<div style="color:#909399;padding:20px;text-align:center;">没有排到任何课程（锚点太靠后或课程数为 0）</div>';
-    return;
-  }
-  const doneCount = schedule.filter(s => s.done).length;
-  const total = schedule.length;
-  const pct = Math.round(doneCount / total * 100);
-  const nextUndone = schedule.find(s => !s.done);
+  const fbTotal = st.fbTotal || 34;
+  const lygTotal = st.lygTotal || 21;
+  // 每轮 2 个 slot（上午 + 下午），公基完了下午继续排粉笔，总轮数 = fbTotal
+  const totalSlots = fbTotal * 2;
+  const doneStats = epPhase1GetDoneStats();
+  const doneCount = doneStats.fbDone + doneStats.lygDone + doneStats.fb2Done;
+  const pendingCount = schedule.length;
+  const pct = Math.round(doneCount / totalSlots * 100);
+  const nextUndone = schedule[0];
   const today = new Date(); today.setHours(0, 0, 0, 0);
 
   let html = '';
   // 顶部进度条
   html += `<div class="ep-ps-head">
     <span class="title">📅 阶段一进度</span>
-    <span class="sub">粉笔职测 ${st.fbTotal} 课 + 林英公基 ${st.lygTotal} 课 = ${total} 课时 &nbsp;·&nbsp; 已完成 ${doneCount} · 剩余 ${total - doneCount}${nextUndone ? ` &nbsp;·&nbsp; 下一课 ${fmtEpDate(nextUndone.slotTs)} ${nextUndone.isAM ? '上午' : '下午'}` : ' &nbsp;·&nbsp; 🎉 阶段一全部完成！'}</span>
+    <span class="sub">粉笔职测 ${fbTotal} 课 + 林英公基 ${lygTotal} 课 = ${totalSlots} 课时 &nbsp;·&nbsp; 已完成 <b>${doneCount}</b> · 剩余 ${pendingCount}${nextUndone ? ` &nbsp;·&nbsp; 下一课 ${fmtEpDate(nextUndone.slotTs)} ${nextUndone.isAM ? '上午' : '下午'} · ${escapeHtml(nextUndone.videoName)}` : ' &nbsp;·&nbsp; 🎉 阶段一全部完成！'}</span>
   </div>
-  <div class="ep-ps-progress"><i style="width:${pct}%;"></i><span class="ep-ps-progress-txt">${doneCount}/${total} · ${pct}%</span></div>`;
+  <div class="ep-ps-progress"><i style="width:${pct}%;"></i><span class="ep-ps-progress-txt">${doneCount}/${totalSlots} · ${pct}%</span></div>`;
 
-  // 视频打开提示横幅（解决"点进去怎么退出来"问题）
+  // 已完成汇总条（让用户一眼看到已完成了多少）
+  if (doneCount > 0) {
+    html += `<div class="ep-ps-banner" style="background:rgba(82,196,26,0.08);border-color:#b7eb8f;color:#389e0d;">
+      ✅ 已完成 <b>${doneCount}</b> 课：粉笔 ${doneStats.fbDone + doneStats.fb2Done} 课 + 公基 ${doneStats.lygDone} 课 &nbsp;·&nbsp;
+      ${nextUndone ? `未完成课程已自动从今天起重新排好，下一课是 ${escapeHtml(nextUndone.videoName)}（${fmtEpDate(nextUndone.slotTs)} ${nextUndone.isAM ? 'AM' : 'PM'}）` : '全部学完！'}
+    </div>`;
+  }
+
+  // 视频打开提示横幅
   html += `<div class="ep-ps-banner">
-    💡 <b>点击课程名</b> 复制视频路径，或点右侧 📂 / ✅ 操作。<b>浏览器说明</b>：由于 https:// 与 file:///F:/ 不同源，直接在 GitHub Pages 上打不开本地视频。
-    <a href="#" onclick="epShowLocalHint(event)">👉 怎么在电脑上打开本地视频？</a>
+    💡 <b>点击课程名</b> 复制视频路径，或点格子里的 📂 打开。<b>浏览器说明</b>：https://GitHub Pages 打不开本地 F 盘视频，点一下路径复制后到「此电脑」地址栏粘贴回车即可打开。
+    <a href="#" onclick="epShowLocalHint(event)">👉 查看详细步骤</a>
     &nbsp;&nbsp;<button class="btn btn-ghost btn-sm" style="padding:2px 8px;" onclick="editEpPhase1Videos()">✏️ 编辑课程</button>
   </div>`;
+
+  if (pendingCount === 0) {
+    html += `<div style="text-align:center;padding:30px;color:#389e0d;font-size:16px;">🎉 恭喜！阶段一 ${totalCourses} 课全部完成！</div>`;
+    box.innerHTML = html;
+    return;
+  }
 
   // 视图切换
   html += `<div class="ep-tt-nav">
@@ -5003,8 +5031,8 @@ function renderEpPhase1() {
   }
 
   html += `<div class="ep-ps-footer">
-    <span>🔄 每天自动将未完成课程顺延 · 锚点 ${fmtEpDate(st.anchorTs)}</span>
-    <span>完成率 <b>${pct}%</b></span>
+    <span>🔄 每天自动将未完成课程推到今天 · 完成率 <b>${pct}%</b></span>
+    <span>下一课起点 ${fmtEpDate(st.nextStartTs)}</span>
   </div>`;
   box.innerHTML = html;
 }
