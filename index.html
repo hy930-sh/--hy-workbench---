@@ -365,6 +365,8 @@
   .trip-card .trip-cover { height: 130px; display: flex; align-items: center; justify-content: center; font-size: 56px; position: relative; }
   .trip-card .trip-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.18)); }
   .trip-card .trip-stamp { position: absolute; top: 8px; left: 8px; padding: 3px 10px; background: rgba(255,255,255,0.85); border-radius: 10px; font-size: 11px; color: #d4380d; border: 1px dashed #d4380d; z-index: 2; }
+  .trip-card .trip-mode-badge { position: absolute; bottom: 8px; left: 8px; padding: 3px 10px; background: rgba(255,255,255,0.92); border-radius: 10px; font-size: 11px; color: #667eea; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.08); z-index: 2; }
+  .trip-mode-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.6); font-size: 11px; font-weight: 600; }
   .trip-card .trip-edit-btn { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.92); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; z-index: 2; border: 1px solid rgba(0,0,0,0.08); }
   .trip-card .trip-edit-btn:hover { background: #667eea; color: #fff; }
   .trip-card .trip-body { padding: 12px 14px; }
@@ -6322,6 +6324,21 @@ let trips = loadTrips();
 function saveTrips() { localStorage.setItem('hy_trips', JSON.stringify(trips)); }
 
 const TRIP_AVATARS = ['🐱', '🐶', '🐰', '🦊', '🐻', '🐯', '🐨', '🐼', '🐸', '🐵'];
+
+// 出行方式
+const TRIP_MODES = [
+  { key: 'drive', name: '自驾', icon: '🚗' },
+  { key: 'plane', name: '飞机', icon: '✈️' },
+  { key: 'train', name: '动车', icon: '🚄' },
+  { key: 'hsr', name: '高铁', icon: '🚅' },
+  { key: 'rental', name: '租车', icon: '🚙' },
+  { key: 'bus', name: '大巴', icon: '🚌' },
+  { key: 'ship', name: '邮轮', icon: '🚢' },
+  { key: 'other', name: '其他', icon: '🧭' }
+];
+function getTripModeInfo(key) {
+  return TRIP_MODES.find(m => m.key === key) || null;
+}
 const TRIP_COVERS = ['🏔️', '🏖️', '🏝️', '🌋', '🏰', '🗽', '🎡', '🚂', '🚢', '🛕', '⛩️', '🕌', '⛪', '🌆', '🌅', '🌄', '🌃', '🏞️', '🌋', '⛺'];
 
 // 平铺分类映射（用于统计时合并展示父分类）
@@ -6440,6 +6457,7 @@ let editingRecordIsIncome = false;
 let editingRecordIsTransfer = false;
 let expandedTripCats = new Set(); // 消费分类统计中已展开的大类 key
 let tripMemberFilter = 'all'; // 收支明细的成员筛选
+let tripCatFilter = 'all'; // 收支明细的大类筛选
 
 // 无描述时，默认显示所选分类名称
 function tripRecordDefaultDesc(rec, isIncome) {
@@ -6451,6 +6469,11 @@ function tripRecordDefaultDesc(rec, isIncome) {
 
 function setTripMemberFilter(id) {
   tripMemberFilter = id || 'all';
+  renderTrips();
+}
+
+function setTripCatFilter(key) {
+  tripCatFilter = key || 'all';
   renderTrips();
 }
 
@@ -6491,9 +6514,11 @@ function renderTripCard(t) {
   const cover = t.cover || pickTripCover(t.name);
   const memberCount = (t.members || []).length;
   const stamp = t.stamp ? `<div class="trip-stamp">📍 ${escapeHtml(t.stamp)}</div>` : '';
+  const modeInfo = getTripModeInfo(t.mode);
+  const modeBadge = modeInfo ? `<div class="trip-mode-badge">${modeInfo.icon} ${modeInfo.name}</div>` : '';
   return `<div class="trip-card" onclick="enterTripDetail(${t.id})">
     <div class="trip-cover" style="background:linear-gradient(135deg, ${t.color || 'rgba(102,126,234,0.18)'}, rgba(118,75,162,0.18));">
-      ${stamp}
+      ${stamp}${modeBadge}
       <span style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.15));">${cover}</span>
       <div class="trip-edit-btn" onclick="event.stopPropagation();openTripModal(${t.id})">✎</div>
     </div>
@@ -6511,7 +6536,7 @@ function renderTripCard(t) {
   </div>`;
 }
 
-function enterTripDetail(id) { currentTripId = id; tripMemberFilter = 'all'; renderTrips(); }
+function enterTripDetail(id) { currentTripId = id; tripMemberFilter = 'all'; tripCatFilter = 'all'; renderTrips(); }
 function backToTripList() { currentTripId = null; renderTrips(); }
 
 function renderTripDetail(t) {
@@ -6526,7 +6551,7 @@ function renderTripDetail(t) {
         <span style="font-size:30px;">${cover}</span>
         <div>
           <div style="font-size:18px;font-weight:700;">${escapeHtml(t.name || '未命名')}</div>
-          <div class="ts-meta">${t.stamp ? '📍 ' + escapeHtml(t.stamp) + ' · ' : ''}${fmtTripDate(t.startDate || t.createdAt)}${t.endDate ? ' ~ ' + fmtTripDate(t.endDate) : (t.startDate ? ' 至今' : '')}</div>
+          <div class="ts-meta">${t.stamp ? '📍 ' + escapeHtml(t.stamp) + ' · ' : ''}${fmtTripDate(t.startDate || t.createdAt)}${t.endDate ? ' ~ ' + fmtTripDate(t.endDate) : (t.startDate ? ' 至今' : '')}${getTripModeInfo(t.mode) ? ` · <span class="trip-mode-chip">${getTripModeInfo(t.mode).icon} ${getTripModeInfo(t.mode).name}</span>` : ''}</div>
         </div>
       </div>
       <div class="ts-stats">
@@ -6667,12 +6692,15 @@ function renderTripDetail(t) {
   // 打卡地点 & 美食（左右两栏）
   html += `<div class="punch-section">${renderPunchSection(t, 'place')}${renderPunchSection(t, 'food')}</div>`;
 
-  // 收支明细（支出 + 收入合并，按日期倒序，支持按成员筛选）
+  // 收支明细（支出 + 收入合并，按日期倒序，支持按成员、按大类筛选）
   const memberOpts = (t.members || []).map(m => `<option value="${m.id}" ${tripMemberFilter === m.id ? 'selected' : ''}>${m.avatar} ${escapeHtml(m.name)}</option>`).join('');
   const filterSelect = (t.members || []).length > 1
     ? `<span style="font-size:12px;color:#909399;">筛选成员：<select onchange="setTripMemberFilter(this.value)" style="font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid #dcdfe6;background:#fff;"><option value="all" ${tripMemberFilter==='all'?'selected':''}>全部成员</option>${memberOpts}</select></span>`
     : '';
-  html += `<div class="panel"><div class="panel-header"><h3>📒 收支明细</h3>${filterSelect}</div><div class="panel-body" style="padding:12px 20px;">`;
+  const catOpts = TRIP_CATS.map(c => `<option value="${c.key}" ${tripCatFilter === c.key ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')
+    + `<option value="income" ${tripCatFilter === 'income' ? 'selected' : ''}>💰 收入</option>`;
+  const catFilterSelect = `<span style="font-size:12px;color:#909399;margin-left:10px;">筛选分类：<select onchange="setTripCatFilter(this.value)" style="font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid #dcdfe6;background:#fff;"><option value="all" ${tripCatFilter==='all'?'selected':''}>全部大类</option>${catOpts}</select></span>`;
+  html += `<div class="panel"><div class="panel-header"><h3>📒 收支明细</h3><div style="display:flex;align-items:center;flex-wrap:wrap;">${filterSelect}${catFilterSelect}</div></div><div class="panel-body" style="padding:12px 20px;">`;
   let allRecords = [
     ...(t.expenses || []).map(e => ({ ...e, _type: 'expense' })),
     ...(t.incomes || []).map(i => ({ ...i, _type: 'income' }))
@@ -6680,8 +6708,17 @@ function renderTripDetail(t) {
   if (tripMemberFilter !== 'all') {
     allRecords = allRecords.filter(r => (r._type === 'income' ? r.receiverId : r.payerId) === tripMemberFilter);
   }
+  if (tripCatFilter !== 'all') {
+    allRecords = allRecords.filter(r => {
+      if (r._type === 'income') return tripCatFilter === 'income';
+      if (tripCatFilter === 'income') return false;
+      const info = getTripCatInfo(r.cat);
+      const parentKey = info.parent ? info.parent.key : info.key;
+      return parentKey === tripCatFilter;
+    });
+  }
   if (allRecords.length === 0) {
-    html += '<div class="empty" style="padding:20px;"><div class="icon">📒</div><p>还没有收支记录，点击右上角「+ 记一笔」</p></div>';
+    html += '<div class="empty" style="padding:20px;"><div class="icon">📒</div><p>没有符合条件的记录</p></div>';
   } else {
     allRecords.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
     html += '<div class="trip-expense-row te-head"><div>日期</div><div>内容</div><div>分类</div><div>付款/收款人</div><div>金额</div></div>';
@@ -6745,6 +6782,7 @@ function openTripModal(id) {
       <div><label>开始日期</label><input type="date" id="qm-start-date" value="${t && t.startDate ? fmtTripDate(t.startDate) : today}"></div>
       <div><label>结束日期（可选）</label><input type="date" id="qm-end-date" value="${t && t.endDate ? fmtTripDate(t.endDate) : ''}"></div>
     </div>
+    <div class="form-row"><label>出行方式（可选，用于一眼识别）</label><select id="qm-mode"><option value="">未设置</option>${TRIP_MODES.map(m => `<option value="${m.key}" ${t && t.mode === m.key ? 'selected' : ''}>${m.icon} ${m.name}</option>`).join('')}</select></div>
     <div class="form-row">
       <label>账本成员（参与者，可多人）</label>
       <div id="qm-members-list">${memberRows}</div>
@@ -6783,6 +6821,8 @@ function confirmTrip() {
   if (!name) { alert('请填写账本名称'); return; }
   const stamp = document.getElementById('qm-stamp').value.trim();
   const cover = document.getElementById('qm-cover').value.trim() || pickTripCover(name);
+  const modeEl = document.getElementById('qm-mode');
+  const mode = modeEl ? modeEl.value : '';
   const startDateStr = document.getElementById('qm-start-date').value;
   const endDateStr = document.getElementById('qm-end-date').value;
   const startDate = startDateStr ? new Date(startDateStr + 'T00:00:00').getTime() : Date.now();
@@ -6806,10 +6846,10 @@ function confirmTrip() {
         if (oldMap[m.name]) return { id: oldMap[m.name], name: m.name, avatar: m.avatar };
         return m;
       });
-      Object.assign(t, { name, stamp, cover, startDate, endDate, members: newMembers });
+      Object.assign(t, { name, stamp, cover, startDate, endDate, members: newMembers, mode });
     }
   } else {
-    trips.push({ id: Date.now(), name, stamp, cover, startDate, endDate, members, expenses: [], createdAt: Date.now() });
+    trips.push({ id: Date.now(), name, stamp, cover, mode, startDate, endDate, members, expenses: [], createdAt: Date.now() });
   }
   saveTrips();
   document.getElementById('quick-modal').classList.remove('show');
