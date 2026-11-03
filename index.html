@@ -562,29 +562,50 @@
   .ep-ps-progress { margin:12px 0 10px; height:10px; border-radius:6px; background:rgba(102,126,234,0.12); overflow:hidden; position:relative; }
   .ep-ps-progress > i { display:block; height:100%; background:linear-gradient(90deg,#667eea,#764ba2); border-radius:6px; transition:width 0.4s ease; }
   .ep-ps-progress-txt { position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:11px; color:#fff; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,0.2); }
-  .ep-ps-row { display:grid; grid-template-columns:70px 1fr 30px; gap:8px; align-items:center; padding:8px 10px; border-radius:8px; transition:all 0.2s; }
-  .ep-ps-row:hover { background:rgba(102,126,234,0.06); }
-  .ep-ps-row.today { background:rgba(102,126,234,0.12); border:1px solid rgba(102,126,234,0.35); }
-  .ep-ps-row.done { opacity:0.55; }
-  .ep-ps-row.overdue { background:rgba(245,34,45,0.08); }
-  .ep-ps-slot { font-size:11px; color:#909399; line-height:1.2; }
-  .ep-ps-slot .dow { color:#667eea; font-weight:600; }
-  .ep-ps-slot .time { font-size:10px; }
-  .ep-ps-lesson { font-size:12px; color:#303133; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ep-ps-lesson a { color:inherit; text-decoration:none; }
-  .ep-ps-lesson a:hover { color:#667eea; text-decoration:underline; }
-  .ep-ps-lesson .tag { display:inline-block; padding:1px 6px; border-radius:4px; font-size:10px; margin-right:6px; font-weight:600; }
-  .ep-ps-lesson .tag-fb { background:rgba(102,126,234,0.12); color:#667eea; }
-  .ep-ps-lesson .tag-lyg { background:rgba(24,144,255,0.12); color:#1890ff; }
-  .ep-ps-lesson .tag-fb2 { background:rgba(134,72,223,0.12); color:#8648df; }
-  .ep-ps-act { text-align:center; }
-  .ep-ps-chk { width:22px; height:22px; border-radius:50%; border:2px solid #dcdfe6; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; color:#fff; user-select:none; }
-  .ep-ps-chk.done { background:#52c41a; border-color:#52c41a; }
-  .ep-ps-chk.fail { background:#f5222d; border-color:#f5222d; }
-  .ep-ps-chk:hover { transform:scale(1.1); }
   .ep-ps-today { margin-top:10px; padding:12px 14px; border-radius:10px; background:linear-gradient(135deg, rgba(102,126,234,0.12), rgba(118,75,162,0.10)); border:1px dashed rgba(102,126,234,0.4); }
   .ep-ps-today .tt { font-size:12px; color:#667eea; font-weight:700; margin-bottom:6px; }
   .ep-ps-footer { margin-top:12px; display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#909399; }
+  .ep-ps-banner { padding:10px 14px; border-radius:8px; background:#fffbe6; border:1px solid #ffe58f; margin-bottom:10px; font-size:12px; color:#614700; line-height:1.7; }
+  .ep-ps-banner a { color:#d48806; text-decoration:underline; }
+
+  /* 课程表视图 */
+  .ep-tt { width:100%; border-collapse:separate; border-spacing:4px; font-size:12px; table-layout:fixed; }
+  .ep-tt th { background:rgba(102,126,234,0.08); color:#606266; padding:8px 4px; border-radius:8px; font-size:12px; font-weight:700; }
+  .ep-tt th.today { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; }
+  .ep-tt td { background:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.7); border-radius:10px; vertical-align:top; height:90px; padding:5px 6px; position:relative; transition:all 0.2s; }
+  .ep-tt td:hover { box-shadow:0 4px 12px rgba(102,126,234,0.15); }
+  .ep-tt td.free { background:rgba(255,255,255,0.3); border:1px dashed rgba(200,200,200,0.5); }
+  .ep-tt td.today { background:linear-gradient(135deg, rgba(102,126,234,0.16), rgba(118,75,162,0.12)); border:2px solid #667eea; }
+  .ep-tt td.weekend { background:rgba(144,147,153,0.08); color:#c0c4cc; }
+  .ep-tt td.done { opacity:0.55; }
+  .ep-tt td.overdue { background:rgba(245,34,45,0.08); }
+  .ep-tt .tt-slot { font-size:10px; color:#909399; font-weight:600; margin-bottom:3px; letter-spacing:0.5px; }
+  .ep-tt .tt-cell { font-size:11px; line-height:1.3; }
+  .ep-tt .tt-tag { display:inline-block; padding:1px 5px; border-radius:3px; font-size:10px; font-weight:700; margin-right:3px; }
+  .ep-tt .tag-fb { background:rgba(102,126,234,0.18); color:#5a6fd0; }
+  .ep-tt .tag-lyg { background:rgba(24,144,255,0.18); color:#1890ff; }
+  .ep-tt .tag-fb2 { background:rgba(134,72,223,0.18); color:#8648df; }
+  .ep-tt .tt-name { color:#303133; font-weight:600; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-all; }
+  .ep-tt .tt-actions { position:absolute; bottom:4px; right:5px; display:flex; gap:3px; opacity:0; transition:opacity 0.2s; }
+  .ep-tt td:hover .tt-actions { opacity:1; }
+  .ep-tt .tt-btn { width:20px; height:20px; border-radius:50%; border:1px solid #dcdfe6; background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:10px; color:#606266; padding:0; }
+  .ep-tt .tt-btn:hover { border-color:#667eea; color:#667eea; }
+  .ep-tt .tt-btn.done { background:#52c41a; border-color:#52c41a; color:#fff; }
+  .ep-tt .tt-btn.overdue { background:#f5222d; border-color:#f5222d; color:#fff; }
+  .ep-tt .tt-empty { color:#c0c4cc; font-size:10px; text-align:center; margin-top:18px; }
+  .ep-tt .tt-date { font-size:10px; color:#909399; margin-bottom:2px; }
+  .ep-tt td.free .tt-date, .ep-tt td.weekend .tt-date { text-align:center; }
+  .ep-tt-nav { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .ep-tt-nav .tt-title { font-size:13px; font-weight:700; color:#303133; margin-left:4px; }
+  .ep-tt-nav .tt-sub { font-size:11px; color:#909399; }
+  .ep-tt-toggle { display:flex; gap:4px; margin-left:auto; }
+  .ep-tt-toggle button { font-size:11px; padding:4px 10px; }
+
+  @media (max-width: 900px) {
+    .ep-tt { font-size:11px; }
+    .ep-tt th, .ep-tt td { padding:4px 3px; height:80px; }
+    .ep-tt .tt-name { -webkit-line-clamp:1; }
+  }
 
   /* 美化滚动条 */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -4733,17 +4754,22 @@ const EP_PHASE1_DEFAULTS = {
   lygTotal: 21,
   fbBase: 'file:///F:/学习/2、2027职测通用系统课-上午/2027年事业单位职测【FB】/第一阶段：理论讲练/职测/',
   lygBase: 'file:///F:/学习/3、2026福建事业编课程-公基-下午/2026年福建事业单位公基系统班/',
-  // 默认课名（用户可编辑），数组长度等于 total 时会被采用；否则用"第N课"占位
   fbFiles: [],
   lygFiles: [],
-  // 锚点日期：起始周的周一上午时间戳
   anchorTs: 0,
-  // 完成状态 { key: 'fb-1' | 'lyg-1' | 'fb2-22', value: { done: bool, completedAt: ts } }
   progress: {}
 };
 let epPhase1State = JSON.parse(localStorage.getItem('hy_ep_phase1') || 'null');
 if (!epPhase1State) epPhase1State = JSON.parse(JSON.stringify(EP_PHASE1_DEFAULTS));
 function saveEpPhase1() { localStorage.setItem('hy_ep_phase1', JSON.stringify(epPhase1State)); }
+
+// 视图状态
+let epPhase1View = localStorage.getItem('hy_ep_phase1_view') || 'table'; // 'table' | 'list'
+let epPhase1WeekOffset = parseInt(localStorage.getItem('hy_ep_phase1_week') || '0'); // 相对"今日周"的偏移（以周一为起点）
+function saveEpPhase1View() {
+  localStorage.setItem('hy_ep_phase1_view', epPhase1View);
+  localStorage.setItem('hy_ep_phase1_week', epPhase1WeekOffset);
+}
 
 // 学习时段：每周一~周五
 //   周一  ：PM 学习；AM 休息
@@ -4920,7 +4946,7 @@ function resetEpPhase1Progress() {
   showStatus('已从今天重新排好，未完成的课都往前挪了', 'success');
 }
 
-// 渲染阶段一面板
+// 渲染阶段一面板（课程表 / 列表）
 function renderEpPhase1() {
   const box = document.getElementById('ep-phase1-content');
   if (!box) return;
@@ -4942,59 +4968,168 @@ function renderEpPhase1() {
   const doneCount = schedule.filter(s => s.done).length;
   const total = schedule.length;
   const pct = Math.round(doneCount / total * 100);
-  const today00 = new Date(); today00.setHours(0, 0, 0, 0);
-  const today = today00.getTime();
-  const todayRows = schedule.filter(s => new Date(s.slotTs).toDateString() === new Date().toDateString());
   const nextUndone = schedule.find(s => !s.done);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
 
-  let html = `<div class="ep-ps-head">
-    <span class="title">阶段一进度</span>
+  let html = '';
+  // 顶部进度条
+  html += `<div class="ep-ps-head">
+    <span class="title">📅 阶段一进度</span>
     <span class="sub">粉笔职测 ${st.fbTotal} 课 + 林英公基 ${st.lygTotal} 课 = ${total} 课时 &nbsp;·&nbsp; 已完成 ${doneCount} · 剩余 ${total - doneCount}${nextUndone ? ` &nbsp;·&nbsp; 下一课 ${fmtEpDate(nextUndone.slotTs)} ${nextUndone.isAM ? '上午' : '下午'}` : ' &nbsp;·&nbsp; 🎉 阶段一全部完成！'}</span>
   </div>
   <div class="ep-ps-progress"><i style="width:${pct}%;"></i><span class="ep-ps-progress-txt">${doneCount}/${total} · ${pct}%</span></div>`;
 
-  // 今日学习区
-  if (todayRows.length > 0) {
-    html += `<div class="ep-ps-today"><div class="tt">📌 今日（${fmtEpDate(today)}）计划</div>`;
-    todayRows.forEach(r => {
-      html += renderEpPhase1Row(r, true);
-    });
-    html += '</div>';
-  }
+  // 视频打开提示横幅（解决"点进去怎么退出来"问题）
+  html += `<div class="ep-ps-banner">
+    💡 <b>点击课程名</b> 复制视频路径，或点右侧 📂 / ✅ 操作。<b>浏览器说明</b>：由于 https:// 与 file:///F:/ 不同源，直接在 GitHub Pages 上打不开本地视频。
+    <a href="#" onclick="epShowLocalHint(event)">👉 怎么在电脑上打开本地视频？</a>
+    &nbsp;&nbsp;<button class="btn btn-ghost btn-sm" style="padding:2px 8px;" onclick="editEpPhase1Videos()">✏️ 编辑课程</button>
+  </div>`;
 
-  // 主列表：按日期分组，只显示"前2天 + 未来14天"（含今日），按天分组
-  const visibleRows = schedule.filter(s => {
-    const d0 = new Date(s.slotTs); d0.setHours(0, 0, 0, 0);
-    const diff = Math.round((d0.getTime() - today) / 86400000);
-    // 已完成的全部显示（方便回溯），未完成的只显示 diff 范围 [-7, +14]
-    if (s.done) return true;
-    return diff >= -7 && diff <= 14;
-  });
-  let lastDate = '';
-  visibleRows.forEach(r => {
-    const dText = fmtEpDate(r.slotTs);
-    if (dText !== lastDate) {
-      lastDate = dText;
-      const dow = ['周日','周一','周二','周三','周四','周五','周六'][new Date(r.slotTs).getDay()];
-      html += `<div style="margin:12px 0 4px;font-size:11px;color:#909399;font-weight:600;letter-spacing:1px;">${dText} · ${dow}</div>`;
-    }
-    html += renderEpPhase1Row(r, false);
-  });
-  if (visibleRows.length < schedule.length) {
-    html += `<div style="color:#909399;font-size:11px;text-align:center;padding:6px 0;">还有 ${schedule.length - visibleRows.length} 课未展开，已完成的会全部保留</div>`;
+  // 视图切换
+  html += `<div class="ep-tt-nav">
+    <span class="tt-sub">视图：</span>
+    <button class="btn ${epPhase1View === 'table' ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="epPhase1SwitchView('table')">📅 课程表</button>
+    <button class="btn ${epPhase1View === 'list' ? 'btn-primary' : 'btn-ghost'} btn-sm" onclick="epPhase1SwitchView('list')">📋 列表</button>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+      <button class="btn btn-ghost btn-sm" onclick="resetEpPhase1Progress()">↺ 重排</button>
+    </div>
+  </div>`;
+
+  if (epPhase1View === 'table') {
+    html += renderEpPhase1Table(schedule, today);
+  } else {
+    html += renderEpPhase1List(schedule, today);
   }
 
   html += `<div class="ep-ps-footer">
-    <span>🔄 每日打开页面自动将未完成课程顺延；完成率 <b>${pct}%</b></span>
-    <span>锚点：${fmtEpDate(st.anchorTs)}</span>
+    <span>🔄 每天自动将未完成课程顺延 · 锚点 ${fmtEpDate(st.anchorTs)}</span>
+    <span>完成率 <b>${pct}%</b></span>
   </div>`;
   box.innerHTML = html;
 }
 
+function epPhase1SwitchView(v) {
+  epPhase1View = v;
+  saveEpPhase1View();
+  renderEpPhase1();
+}
+
+function epPhase1PrevWeek() { epPhase1WeekOffset--; saveEpPhase1View(); renderEpPhase1(); }
+function epPhase1NextWeek() { epPhase1WeekOffset++; saveEpPhase1View(); renderEpPhase1(); }
+function epPhase1GoToday() { epPhase1WeekOffset = 0; saveEpPhase1View(); renderEpPhase1(); }
+
+function renderEpPhase1Table(schedule, today00) {
+  // 找到"本周一"
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  // 计算本周一（如果今天是周日，monday=now）
+  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  monday.setDate(now.getDate() - diffToMonday + epPhase1WeekOffset * 7);
+
+  const weekMs = 7 * 86400000;
+  const weekStart = monday.getTime();
+  const weekEnd = weekStart + weekMs - 1;
+  const isCurrentWeek = epPhase1WeekOffset === 0;
+  const weekStartLabel = fmtEpDate(weekStart);
+  const weekEndLabel = fmtEpDate(weekStart + 5 * 86400000); // 到周五
+
+  // 收集本周课程 {ts: {am: row, pm: row}}
+  const weekMap = {};
+  schedule.forEach(s => {
+    if (s.slotTs < weekStart || s.slotTs > weekEnd) return;
+    const d = new Date(s.slotTs); d.setHours(0, 0, 0, 0);
+    const key = d.getTime();
+    if (!weekMap[key]) weekMap[key] = {};
+    weekMap[key][s.isAM ? 'am' : 'pm'] = s;
+  });
+
+  const heads = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  const headsHTML = heads.map((h, i) => {
+    const d = new Date(weekStart + i * 86400000);
+    const isToday = d.getTime() === today00.getTime();
+    const dateText = `${d.getMonth()+1}/${d.getDate()}`;
+    return `<th class="${isToday ? 'today' : ''}">${h}<br><span style="font-weight:400;font-size:11px;">${dateText}</span></th>`;
+  }).join('');
+
+  const rows = ['am', 'pm'].map(slot => {
+    const slotLabel = slot === 'am' ? '🌅 上午 09:00' : '🌇 下午 14:00';
+    const cellsHTML = heads.map((_, i) => {
+      const d = new Date(weekStart + i * 86400000); d.setHours(0, 0, 0, 0);
+      const dow = d.getDay();
+      const isWeekend = dow === 0 || dow === 6;
+      const cell = (weekMap[d.getTime()] || {})[slot];
+      const isToday = d.getTime() === today00.getTime();
+      let cls = [];
+      if (isWeekend) cls.push('weekend');
+      if (isToday) cls.push('today');
+      if (!cell) {
+        // 没安排 - 可能是学习窗口（周一AM / 周五PM 本来就休息）或纯粹没排到
+        const isRest = (dow === 1 && slot === 'am') || (dow === 5 && slot === 'pm') || isWeekend;
+        if (!isRest) cls.push('free');
+        const emptyTxt = isRest ? '🌙 休息' : (isWeekend ? '周末' : '');
+        return `<td class="${cls.join(' ')}"><div class="tt-date">${d.getMonth()+1}/${d.getDate()}</div>${emptyTxt ? `<div class="tt-empty">${emptyTxt}</div>` : ''}</td>`;
+      }
+      cls.push(cell.done ? 'done' : '');
+      cls.push((!cell.done && cell.slotTs < today00.getTime()) ? 'overdue' : '');
+      // 构造内容
+      const tagClass = cell.module === 'fb' ? 'tag-fb' : cell.module === 'lyg' ? 'tag-lyg' : 'tag-fb2';
+      const tagText = cell.module === 'fb' ? '粉笔' : cell.module === 'lyg' ? '公基' : '粉笔';
+      const fullName = cell.videoName;
+      const openUrl = cell.fullUrl;
+      const doneHtml = cell.done ? '✅' : '';
+      const overdueBadge = (!cell.done && cell.slotTs < today00.getTime()) ? '⚠️' : '';
+      return `<td class="${cls.join(' ')}" title="${escapeHtml(fullName)}">
+        <div class="tt-cell">
+          <span class="tt-tag ${tagClass}">${tagText}</span>
+          <span class="tt-name" onclick="epCopyLesson('${cell.key}')" style="cursor:pointer;" title="点击复制视频路径">${doneHtml} ${overdueBadge}${escapeHtml(fullName)}</span>
+        </div>
+        <div class="tt-actions">
+          ${openUrl ? `<button class="tt-btn" onclick="epOpenLesson('${cell.key}')" title="打开/复制视频路径">📂</button>` : ''}
+          <button class="tt-btn ${cell.done ? 'done' : (overdueBadge ? 'overdue' : '')}" onclick="epPhase1Toggle('${cell.key}')" title="${cell.done ? '取消完成（打叉）' : '标记完成'}">${cell.done ? '✓' : '○'}</button>
+        </div>
+      </td>`;
+    }).join('');
+    return `<tr><th style="width:90px;vertical-align:middle;background:rgba(102,126,234,0.15);color:#303133;font-size:12px;">${slotLabel}</th>${cellsHTML}</tr>`;
+  }).join('');
+
+  let navHTML = `<button class="btn btn-ghost btn-sm" ${epPhase1WeekOffset <= -8 ? 'disabled' : ''} onclick="epPhase1PrevWeek()">← 上一周</button>`;
+  if (!isCurrentWeek) navHTML += `<button class="btn btn-primary btn-sm" onclick="epPhase1GoToday()">📍 回到本周</button>`;
+  navHTML += `<button class="btn btn-ghost btn-sm" ${epPhase1WeekOffset >= 8 ? 'disabled' : ''} onclick="epPhase1NextWeek()">下一周 →</button>`;
+  navHTML += `<span class="tt-title">${weekStartLabel} ~ ${weekEndLabel}</span>`;
+
+  return `<div class="ep-tt-nav">${navHTML}</div>
+  <div style="overflow-x:auto;">
+    <table class="ep-tt"><thead><tr><th style="width:90px;background:rgba(102,126,234,0.12);color:#606266;">时间</th>${headsHTML}</tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+}
+
+function renderEpPhase1List(schedule, today00) {
+  const visibleRows = schedule.filter(s => {
+    if (s.done) return true;
+    const d0 = new Date(s.slotTs); d0.setHours(0, 0, 0, 0);
+    const diff = Math.round((d0.getTime() - today00.getTime()) / 86400000);
+    return diff >= -7 && diff <= 30;
+  });
+  let html = '';
+  let lastDate = '';
+  visibleRows.forEach(r => {
+    const d = new Date(r.slotTs);
+    const dText = fmtEpDate(r.slotTs);
+    if (dText !== lastDate) {
+      lastDate = dText;
+      const dow = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
+      html += `<div style="margin:12px 0 4px;font-size:11px;color:#909399;font-weight:600;letter-spacing:1px;">${dText} · ${dow}</div>`;
+    }
+    html += renderEpPhase1Row(r, d.toDateString() === today00.toDateString());
+  });
+  return html;
+}
+
 function renderEpPhase1Row(r, highlightToday) {
   const d = new Date(r.slotTs);
-  const dow = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
-  const slotStr = `${d.getMonth()+1}/${d.getDate()} · ${dow}<br><span class="time">${r.isAM ? 'AM 09:00' : 'PM 14:00'}</span>`;
   const tagClass = r.module === 'fb' ? 'tag-fb' : r.module === 'lyg' ? 'tag-lyg' : 'tag-fb2';
   const tagText = r.module === 'fb' ? '粉笔' : r.module === 'lyg' ? '公基' : '粉笔';
   const overdue = !r.done && r.slotTs < (() => { const t = new Date(); t.setHours(0,0,0,0); return t.getTime(); })();
@@ -5002,17 +5137,67 @@ function renderEpPhase1Row(r, highlightToday) {
   if (highlightToday) rowCls.push('today');
   if (r.done) rowCls.push('done');
   if (overdue) rowCls.push('overdue');
-  const icon = r.done ? '✅' : '⬜';
-  const act = r.done ? '✅' : (overdue ? '❌' : '○');
-  // fullUrl 可能是 file:///... 或 http://...，也可能只是空（用户没填路径）
-  const openHtml = r.fullUrl
-    ? `<a href="${escapeHtml(r.fullUrl)}" target="_blank" title="打开视频">📂</a>`
-    : `<span style="color:#c0c4cc;" title="请先到 ✏️ 编辑课程里填路径">📂</span>`;
-  return `<div class="${rowCls.join(' ')}">
-    <div class="ep-ps-slot"><span class="dow">${d.getMonth()+1}/${d.getDate()} · ${dow}</span><div class="time">${r.isAM ? 'AM 09:00' : 'PM 14:00'}</div></div>
-    <div class="ep-ps-lesson"><span class="tag ${tagClass}">${tagText}</span><span class="lesson-text" data-key="${r.key}">${escapeHtml(r.videoName)}</span> &nbsp; ${openHtml}</div>
-    <div class="ep-ps-act"><span class="ep-ps-chk ${r.done ? 'done' : ''}" onclick="epPhase1Toggle('${r.key}')">${r.done ? '✓' : ''}</span></div>
+  return `<div class="${rowCls.join(' ')}" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.7);margin-bottom:4px;">
+    <div style="font-size:11px;color:#909399;width:86px;flex-shrink:0;">
+      <div><b style="color:#667eea;">${d.getMonth()+1}/${d.getDate()}</b> · ${['日','一','二','三','四','五','六'][d.getDay()]}</div>
+      <div style="font-size:10px;">${r.isAM ? 'AM 09:00' : 'PM 14:00'}</div>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <span class="tt-tag ${tagClass}">${tagText}</span>
+      <span style="cursor:pointer;" onclick="epCopyLesson('${r.key}')" title="点击复制视频路径">${escapeHtml(r.done ? '✅ ' + r.videoName : r.videoName)}</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      ${r.fullUrl ? `<button class="btn btn-ghost btn-sm" onclick="epOpenLesson('${r.key}')" title="打开/复制视频路径">📂</button>` : ''}
+      <button class="btn ${r.done ? 'btn-primary' : (overdue ? 'btn-ghost' : 'btn-ghost')} btn-sm" onclick="epPhase1Toggle('${r.key}')">${r.done ? '✓ 已完成' : (overdue ? '❌ 打叉' : '○ 完成')}</button>
+    </div>
   </div>`;
+}
+
+// 复制 / 打开视频路径
+function epGetLesson(key) {
+  const st = epPhase1State;
+  const schedule = epPhase1GenerateSchedule();
+  return schedule.find(s => s.key === key);
+}
+function epOpenLesson(key) {
+  const row = epGetLesson(key);
+  if (!row) return;
+  if (!row.fullUrl) { showStatus('请先到「✏️ 编辑课程」里填基础目录和课名', 'warn'); editEpPhase1Videos(); return; }
+  // 方式1：尝试 window.open（HTTPS 限制下会被拦截）
+  try { window.open(row.fullUrl, '_blank'); } catch(e) {}
+  // 方式2：同时复制到剪贴板 + 提示
+  const raw = decodeURI(row.fullUrl);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(raw).then(() => {
+      showStatus('视频路径已复制，到电脑「此电脑」地址栏粘贴回车即可打开 🎬', 'success');
+    }, () => {
+      epFallbackCopy(raw);
+    });
+  } else {
+    epFallbackCopy(raw);
+  }
+}
+function epCopyLesson(key) {
+  const row = epGetLesson(key);
+  if (!row) return;
+  const raw = row.fullUrl ? decodeURI(row.fullUrl) : (row.videoName + '（请先编辑课程）');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(raw).then(() => showStatus('已复制：' + (raw.length > 60 ? raw.slice(0, 60) + '...' : raw), 'success'));
+  } else {
+    epFallbackCopy(raw);
+  }
+}
+function epFallbackCopy(text) {
+  const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); showStatus('已复制：' + text.slice(0, 40), 'success'); }
+  catch(e) { showStatus('复制失败，请手动选中：' + text, 'warn'); }
+  document.body.removeChild(ta);
+}
+
+function epShowLocalHint(e) {
+  e.preventDefault();
+  showStatus('🎬 在电脑上打开本地视频的方法：\n1. 点击课程名 → 路径已自动复制\n2. 打开「此电脑」/ 文件资源管理器\n3. 在地址栏按 Ctrl+V 粘贴 → 回车\n视频会用默认播放器打开', 'info');
 }
 
 function fmtEpDate(ts) {
