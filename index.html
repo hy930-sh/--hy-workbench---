@@ -365,8 +365,11 @@
   .trip-card .trip-cover { height: 130px; display: flex; align-items: center; justify-content: center; font-size: 56px; position: relative; }
   .trip-card .trip-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.18)); }
   .trip-card .trip-stamp { position: absolute; top: 8px; left: 8px; padding: 3px 10px; background: rgba(255,255,255,0.85); border-radius: 10px; font-size: 11px; color: #d4380d; border: 1px dashed #d4380d; z-index: 2; }
-  .trip-card .trip-mode-badge { position: absolute; bottom: 8px; left: 8px; padding: 3px 10px; background: rgba(255,255,255,0.92); border-radius: 10px; font-size: 11px; color: #667eea; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.08); z-index: 2; }
+  .trip-card .trip-mode-badges { position: absolute; bottom: 8px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px; z-index: 2; }
+  .trip-card .trip-mode-badge { padding: 2px 8px; background: rgba(255,255,255,0.92); border-radius: 10px; font-size: 10px; color: #667eea; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
   .trip-mode-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 8px; background: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.6); font-size: 11px; font-weight: 600; }
+  .trip-mode-opt { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; border: 1px solid #dcdfe6; font-size: 12px; cursor: pointer; background: #fff; user-select: none; }
+  .trip-mode-opt:has(input:checked) { border-color: #667eea; background: rgba(102,126,234,0.1); color: #667eea; font-weight: 600; }
   .trip-card .trip-edit-btn { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.92); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; z-index: 2; border: 1px solid rgba(0,0,0,0.08); }
   .trip-card .trip-edit-btn:hover { background: #667eea; color: #fff; }
   .trip-card .trip-body { padding: 12px 14px; }
@@ -6301,6 +6304,9 @@ function loadTrips() {
   try { list = JSON.parse(raw) || []; } catch (e) { return []; }
   list.forEach(t => {
     if (!Array.isArray(t.transfers)) t.transfers = [];
+    // 兼容旧版单选出行方式：mode 字符串 → modes 数组
+    if (!Array.isArray(t.modes)) t.modes = t.mode ? [t.mode] : [];
+    delete t.mode;
     if (Array.isArray(t.incomes)) {
       const rest = [];
       t.incomes.forEach(i => {
@@ -6514,8 +6520,12 @@ function renderTripCard(t) {
   const cover = t.cover || pickTripCover(t.name);
   const memberCount = (t.members || []).length;
   const stamp = t.stamp ? `<div class="trip-stamp">📍 ${escapeHtml(t.stamp)}</div>` : '';
-  const modeInfo = getTripModeInfo(t.mode);
-  const modeBadge = modeInfo ? `<div class="trip-mode-badge">${modeInfo.icon} ${modeInfo.name}</div>` : '';
+  const modeBadge = (t.modes || []).length
+    ? `<div class="trip-mode-badges">${(t.modes || []).map(k => {
+        const m = getTripModeInfo(k);
+        return m ? `<span class="trip-mode-badge">${m.icon} ${m.name}</span>` : '';
+      }).join('')}</div>`
+    : '';
   return `<div class="trip-card" onclick="enterTripDetail(${t.id})">
     <div class="trip-cover" style="background:linear-gradient(135deg, ${t.color || 'rgba(102,126,234,0.18)'}, rgba(118,75,162,0.18));">
       ${stamp}${modeBadge}
@@ -6551,7 +6561,7 @@ function renderTripDetail(t) {
         <span style="font-size:30px;">${cover}</span>
         <div>
           <div style="font-size:18px;font-weight:700;">${escapeHtml(t.name || '未命名')}</div>
-          <div class="ts-meta">${t.stamp ? '📍 ' + escapeHtml(t.stamp) + ' · ' : ''}${fmtTripDate(t.startDate || t.createdAt)}${t.endDate ? ' ~ ' + fmtTripDate(t.endDate) : (t.startDate ? ' 至今' : '')}${getTripModeInfo(t.mode) ? ` · <span class="trip-mode-chip">${getTripModeInfo(t.mode).icon} ${getTripModeInfo(t.mode).name}</span>` : ''}</div>
+          <div class="ts-meta">${t.stamp ? '📍 ' + escapeHtml(t.stamp) + ' · ' : ''}${fmtTripDate(t.startDate || t.createdAt)}${t.endDate ? ' ~ ' + fmtTripDate(t.endDate) : (t.startDate ? ' 至今' : '')}${(t.modes || []).length ? ' · ' + (t.modes || []).map(k => { const m = getTripModeInfo(k); return m ? `<span class="trip-mode-chip">${m.icon} ${m.name}</span>` : ''; }).join(' ') : ''}</div>
         </div>
       </div>
       <div class="ts-stats">
@@ -6782,7 +6792,12 @@ function openTripModal(id) {
       <div><label>开始日期</label><input type="date" id="qm-start-date" value="${t && t.startDate ? fmtTripDate(t.startDate) : today}"></div>
       <div><label>结束日期（可选）</label><input type="date" id="qm-end-date" value="${t && t.endDate ? fmtTripDate(t.endDate) : ''}"></div>
     </div>
-    <div class="form-row"><label>出行方式（可选，用于一眼识别）</label><select id="qm-mode"><option value="">未设置</option>${TRIP_MODES.map(m => `<option value="${m.key}" ${t && t.mode === m.key ? 'selected' : ''}>${m.icon} ${m.name}</option>`).join('')}</select></div>
+    <div class="form-row">
+      <label>出行方式（可多选）</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${TRIP_MODES.map(m => `<label class="trip-mode-opt"><input type="checkbox" class="qm-mode-check" value="${m.key}" ${t && (t.modes || []).includes(m.key) ? 'checked' : ''}> ${m.icon} ${m.name}</label>`).join('')}
+      </div>
+    </div>
     <div class="form-row">
       <label>账本成员（参与者，可多人）</label>
       <div id="qm-members-list">${memberRows}</div>
@@ -6821,8 +6836,7 @@ function confirmTrip() {
   if (!name) { alert('请填写账本名称'); return; }
   const stamp = document.getElementById('qm-stamp').value.trim();
   const cover = document.getElementById('qm-cover').value.trim() || pickTripCover(name);
-  const modeEl = document.getElementById('qm-mode');
-  const mode = modeEl ? modeEl.value : '';
+  const modes = Array.from(document.querySelectorAll('.qm-mode-check:checked')).map(el => el.value);
   const startDateStr = document.getElementById('qm-start-date').value;
   const endDateStr = document.getElementById('qm-end-date').value;
   const startDate = startDateStr ? new Date(startDateStr + 'T00:00:00').getTime() : Date.now();
@@ -6846,10 +6860,10 @@ function confirmTrip() {
         if (oldMap[m.name]) return { id: oldMap[m.name], name: m.name, avatar: m.avatar };
         return m;
       });
-      Object.assign(t, { name, stamp, cover, startDate, endDate, members: newMembers, mode });
+      Object.assign(t, { name, stamp, cover, startDate, endDate, members: newMembers, modes });
     }
   } else {
-    trips.push({ id: Date.now(), name, stamp, cover, mode, startDate, endDate, members, expenses: [], createdAt: Date.now() });
+    trips.push({ id: Date.now(), name, stamp, cover, modes, startDate, endDate, members, expenses: [], createdAt: Date.now() });
   }
   saveTrips();
   document.getElementById('quick-modal').classList.remove('show');
