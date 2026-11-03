@@ -4766,6 +4766,30 @@ let epPhase1State = JSON.parse(localStorage.getItem('hy_ep_phase1') || 'null');
 if (!epPhase1State) epPhase1State = JSON.parse(JSON.stringify(EP_PHASE1_DEFAULTS));
 function saveEpPhase1() { localStorage.setItem('hy_ep_phase1', JSON.stringify(epPhase1State)); }
 
+// 数据迁移：把旧进度 {done: true} 转为新格式 {status: 'done'}，迁移 anchorTs → nextStartTs
+function epPhase1Migrate() {
+  const st = epPhase1State;
+  let changed = false;
+  // 1. 迁移 progress
+  if (st.progress) {
+    Object.keys(st.progress).forEach(k => {
+      const p = st.progress[k];
+      if (p && (p.done === true || p.status === 'done')) {
+        if (p.status !== 'done') { st.progress[k] = { status: 'done', completedAt: p.completedAt || Date.now() }; changed = true; }
+      } else if (p && p.done === false && !p.status) {
+        st.progress[k] = { status: 'pending' }; changed = true;
+      }
+    });
+  }
+  // 2. 迁移 anchorTs → nextStartTs
+  if (!st.nextStartTs && st.anchorTs) { st.nextStartTs = st.anchorTs; changed = true; }
+  if (!st.nextStartTs) {
+    const first = epNextStudySlot(new Date().getTime());
+    if (first) { st.nextStartTs = first.ts; changed = true; }
+  }
+  if (changed) saveEpPhase1();
+}
+
 // 视图状态
 let epPhase1View = localStorage.getItem('hy_ep_phase1_view') || 'table'; // 'table' | 'list'
 let epPhase1WeekOffset = parseInt(localStorage.getItem('hy_ep_phase1_week') || '0'); // 相对"今日周"的偏移（以周一为起点）
@@ -4890,6 +4914,7 @@ function epPhase1GetDoneStats() {
 
 // 生成"未完成课程"排程：从 nextStartTs 开始依次填 slot
 function epPhase1GenerateSchedule() {
+  epPhase1Migrate();
   const st = epPhase1State;
   // 首次：nextStartTs=0 → 用今天的第一个学习时段
   if (!st.nextStartTs) {
@@ -4961,6 +4986,7 @@ function resetEpPhase1Progress() {
 
 // 渲染阶段一面板（课程表 / 列表）
 function renderEpPhase1() {
+  epPhase1Migrate();
   const box = document.getElementById('ep-phase1-content');
   if (!box) return;
   const st = epPhase1State;
@@ -4968,8 +4994,6 @@ function renderEpPhase1() {
   if (!st.nextStartTs) {
     const first = epNextStudySlot(new Date().getTime());
     st.nextStartTs = first ? first.ts : 0;
-    // 迁移旧数据：如果存在 anchorTs，用它作为起点
-    if (st.anchorTs && st.anchorTs > 0) st.nextStartTs = st.anchorTs;
     saveEpPhase1();
   }
 
