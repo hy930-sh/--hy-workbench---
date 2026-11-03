@@ -555,6 +555,37 @@
   .ep-fstat-pct { font-size: 11px; color: #909399; margin-top: 6px; display: flex; justify-content: space-between; }
   @media (max-width: 900px) { .ep-fstat-grid { grid-template-columns: 1fr; } }
 
+  /* 阶段一 · 每日学习计划 */
+  .ep-ps-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .ep-ps-head .title { font-size:14px; font-weight:700; color:#303133; }
+  .ep-ps-head .sub { font-size:12px; color:#909399; }
+  .ep-ps-progress { margin:12px 0 10px; height:10px; border-radius:6px; background:rgba(102,126,234,0.12); overflow:hidden; position:relative; }
+  .ep-ps-progress > i { display:block; height:100%; background:linear-gradient(90deg,#667eea,#764ba2); border-radius:6px; transition:width 0.4s ease; }
+  .ep-ps-progress-txt { position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:11px; color:#fff; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,0.2); }
+  .ep-ps-row { display:grid; grid-template-columns:70px 1fr 30px; gap:8px; align-items:center; padding:8px 10px; border-radius:8px; transition:all 0.2s; }
+  .ep-ps-row:hover { background:rgba(102,126,234,0.06); }
+  .ep-ps-row.today { background:rgba(102,126,234,0.12); border:1px solid rgba(102,126,234,0.35); }
+  .ep-ps-row.done { opacity:0.55; }
+  .ep-ps-row.overdue { background:rgba(245,34,45,0.08); }
+  .ep-ps-slot { font-size:11px; color:#909399; line-height:1.2; }
+  .ep-ps-slot .dow { color:#667eea; font-weight:600; }
+  .ep-ps-slot .time { font-size:10px; }
+  .ep-ps-lesson { font-size:12px; color:#303133; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ep-ps-lesson a { color:inherit; text-decoration:none; }
+  .ep-ps-lesson a:hover { color:#667eea; text-decoration:underline; }
+  .ep-ps-lesson .tag { display:inline-block; padding:1px 6px; border-radius:4px; font-size:10px; margin-right:6px; font-weight:600; }
+  .ep-ps-lesson .tag-fb { background:rgba(102,126,234,0.12); color:#667eea; }
+  .ep-ps-lesson .tag-lyg { background:rgba(24,144,255,0.12); color:#1890ff; }
+  .ep-ps-lesson .tag-fb2 { background:rgba(134,72,223,0.12); color:#8648df; }
+  .ep-ps-act { text-align:center; }
+  .ep-ps-chk { width:22px; height:22px; border-radius:50%; border:2px solid #dcdfe6; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:12px; color:#fff; user-select:none; }
+  .ep-ps-chk.done { background:#52c41a; border-color:#52c41a; }
+  .ep-ps-chk.fail { background:#f5222d; border-color:#f5222d; }
+  .ep-ps-chk:hover { transform:scale(1.1); }
+  .ep-ps-today { margin-top:10px; padding:12px 14px; border-radius:10px; background:linear-gradient(135deg, rgba(102,126,234,0.12), rgba(118,75,162,0.10)); border:1px dashed rgba(102,126,234,0.4); }
+  .ep-ps-today .tt { font-size:12px; color:#667eea; font-weight:700; margin-bottom:6px; }
+  .ep-ps-footer { margin-top:12px; display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; color:#909399; }
+
   /* 美化滚动条 */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -1269,6 +1300,21 @@ run v. 跑 rʌn" style="width:100%;padding:8px 11px;border:1px solid #d9d9d9;bor
         </div>
         <div class="panel-body">
           <div id="ep-fstat-content"></div>
+        </div>
+      </div>
+
+      <!-- 阶段一 · 每日学习计划 -->
+      <div class="panel" style="margin-top:20px;" data-panel-id="page-examprep-p1q" draggable="false">
+        <div class="panel-header">
+          <span class="drag-handle" title="拖拽排序">⋮⋮</span>
+          <h3>📅 阶段一 · 每日学习计划</h3>
+          <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-ghost btn-sm" onclick="editEpPhase1Videos()">✏️ 编辑课程</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetEpPhase1Progress()">↺ 全部重排</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="ep-phase1-content"></div>
         </div>
       </div>
 
@@ -4681,6 +4727,365 @@ function switchEpFstat(period) {
   renderEpFstat();
 }
 
+// ========== 阶段一 · 每日学习计划 ==========
+const EP_PHASE1_DEFAULTS = {
+  fbTotal: 34,
+  lygTotal: 21,
+  fbBase: 'file:///F:/学习/2、2027职测通用系统课-上午/2027年事业单位职测【FB】/第一阶段：理论讲练/职测/',
+  lygBase: 'file:///F:/学习/3、2026福建事业编课程-公基-下午/2026年福建事业单位公基系统班/',
+  // 默认课名（用户可编辑），数组长度等于 total 时会被采用；否则用"第N课"占位
+  fbFiles: [],
+  lygFiles: [],
+  // 锚点日期：起始周的周一上午时间戳
+  anchorTs: 0,
+  // 完成状态 { key: 'fb-1' | 'lyg-1' | 'fb2-22', value: { done: bool, completedAt: ts } }
+  progress: {}
+};
+let epPhase1State = JSON.parse(localStorage.getItem('hy_ep_phase1') || 'null');
+if (!epPhase1State) epPhase1State = JSON.parse(JSON.stringify(EP_PHASE1_DEFAULTS));
+function saveEpPhase1() { localStorage.setItem('hy_ep_phase1', JSON.stringify(epPhase1State)); }
+
+// 学习时段：每周一~周五
+//   周一  ：PM 学习；AM 休息
+//   周二~四：AM + PM 都学习
+//   周五  ：AM 学习；PM 休息（复盘背诵）
+//   周六日：休息
+// 返回给定日期是否为学习时段
+function epIsStudySlot(ts, isAM) {
+  const d = new Date(ts);
+  const dow = d.getDay(); // 0=Sun, 1=Mon, ...
+  if (dow === 0 || dow === 6) return false;          // 周末
+  if (dow === 1 && isAM) return false;                // 周一 AM 睡觉
+  if (dow === 5 && !isAM) return false;               // 周五 PM 不学习
+  return true;
+}
+
+// 下一个学习时段（返回时间戳，AM 用当天 09:00，PM 用当天 14:00）
+function epNextStudySlot(fromTs) {
+  const d = new Date(fromTs);
+  // 从下一个半小时边界开始，往前试 AM→PM→下一天
+  const candidates = [];
+  const tryDate = new Date(d);
+  // 今天的 PM
+  const todayPM = new Date(tryDate); todayPM.setHours(14, 0, 0, 0);
+  if (todayPM.getTime() > fromTs) candidates.push({ ts: todayPM.getTime(), am: false });
+  // 今天的 AM
+  const todayAM = new Date(tryDate); todayAM.setHours(9, 0, 0, 0);
+  if (todayAM.getTime() > fromTs) candidates.push({ ts: todayAM.getTime(), am: true });
+  // 接下来 60 天内的每天 AM+PM
+  for (let i = 1; i < 80; i++) {
+    const nd = new Date(tryDate); nd.setDate(nd.getDate() + i);
+    const am = new Date(nd); am.setHours(9, 0, 0, 0);
+    const pm = new Date(nd); pm.setHours(14, 0, 0, 0);
+    candidates.push({ ts: am.getTime(), am: true });
+    candidates.push({ ts: pm.getTime(), am: false });
+  }
+  for (const c of candidates) {
+    if (epIsStudySlot(c.ts, c.am)) return c;
+  }
+  return null;
+}
+
+// 排程：基于锚点生成所有课程 → 目标日期映射
+// 返回数组 [{ key, module, idx, slotTs, isAM, done, videoUrl, videoName }]
+function epPhase1GenerateSchedule() {
+  const st = epPhase1State;
+  if (!st.anchorTs) return [];
+  const fbTotal = st.fbTotal || 34;
+  const lygTotal = st.lygTotal || 21;
+  // 构建课程顺序：先"上午 fb / 下午 lyg"配对 lygTotal 次，再"上午 fb / 下午 fb"配对 (fbTotal - lygTotal) 次
+  const slots = [];
+  let nextTs = st.anchorTs;
+  // 第一轮：lygTotal 个"上午职测 + 下午公基"
+  for (let i = 1; i <= lygTotal; i++) {
+    const morning = epNextStudySlot(nextTs - 60000); // -1min 避免边界问题
+    if (!morning) break;
+    const evening = epNextStudySlot(morning.ts + 60000);
+    if (!evening) break;
+    slots.push({ kind: 'morning', slotTs: morning.ts, isAM: true, key: 'fb-' + i, module: 'fb', idx: i });
+    slots.push({ kind: 'evening', slotTs: evening.ts, isAM: false, key: 'lyg-' + i, module: 'lyg', idx: i });
+    nextTs = evening.ts + 60000;
+  }
+  // 第二轮：公基完了，继续排职测（剩余 fbTotal - lygTotal 个课时，继续上午一个下午一个）
+  const remain = Math.max(0, fbTotal - lygTotal);
+  for (let i = 1; i <= remain; i++) {
+    const morning = epNextStudySlot(nextTs - 60000);
+    if (!morning) break;
+    const evening = epNextStudySlot(morning.ts + 60000);
+    if (!evening) break;
+    // 上午是 fb 的第 (lygTotal + i) 课，key = fb-(lygTotal+i)
+    slots.push({ kind: 'morning', slotTs: morning.ts, isAM: true, key: 'fb-' + (lygTotal + i), module: 'fb', idx: lygTotal + i });
+    slots.push({ kind: 'evening', slotTs: evening.ts, isAM: false, key: 'fb2-' + i, module: 'fb2', idx: lygTotal + i });
+    nextTs = evening.ts + 60000;
+  }
+
+  // 合并课程元数据（文件列表 & 完成状态）
+  const fbFiles = st.fbFiles || [];
+  const lygFiles = st.lygFiles || [];
+  return slots.map(s => {
+    const progress = st.progress && st.progress[s.key];
+    let videoUrl = '';
+    let videoName = '';
+    if (s.module === 'fb') {
+      videoName = fbFiles[s.idx - 1] || `粉笔职测 第${s.idx}课`;
+      videoUrl = st.fbBase || '';
+    } else if (s.module === 'fb2') {
+      videoName = fbFiles[s.idx - 1] || `粉笔职测 第${s.idx}课（下午）`;
+      videoUrl = st.fbBase || '';
+    } else if (s.module === 'lyg') {
+      videoName = lygFiles[s.idx - 1] || `林英公基 第${s.idx}课`;
+      videoUrl = st.lygBase || '';
+    }
+    // 拼成完整 URL：如果 videoName 是完整 file:/// 路径就直接用；否则 base + videoName
+    // 对中文、空格、# 等字符编码
+    let fullUrl = '';
+    if (/^[a-zA-Z]:\\/.test(videoName) || /^file:\/\//i.test(videoName)) {
+      // 已是完整路径，只编码 path 部分
+      fullUrl = encodeURI(videoName);
+    } else if (videoUrl && videoName) {
+      const base = videoUrl.replace(/\/$/, '');
+      const full = base + '/' + videoName;
+      // 找到 scheme 后的 / 开始编码 path
+      const m = full.match(/^([a-zA-Z][a-zA-Z0-9+-.]*:\/\/[^/]+)(\/.*)$/);
+      if (m) fullUrl = m[1] + encodeURI(m[2]);
+      else fullUrl = encodeURI(full);
+    }
+    return Object.assign({}, s, {
+      done: !!(progress && progress.done),
+      completedAt: progress ? progress.completedAt : null,
+      videoName, videoUrl, fullUrl
+    });
+  });
+}
+
+// 自动推迟：如果今天已过某课目标日期但未完成，把锚点调整为"让未完成课从今天开始排"
+function epPhase1AutoAdjustAnchor() {
+  const st = epPhase1State;
+  if (!st.anchorTs) {
+    // 没锚点就从今天开始排
+    const start = epPhase1FindFirstAnchor(new Date().getTime());
+    if (start) { st.anchorTs = start; saveEpPhase1(); }
+    return;
+  }
+  const today00 = new Date(); today00.setHours(0, 0, 0, 0);
+  const today = today00.getTime();
+  const schedule = epPhase1GenerateSchedule();
+  // 找所有 目标日期 < 今天 && 未完成 的课
+  const overdue = schedule.filter(s => !s.done && s.slotTs < today);
+  if (overdue.length === 0) return;
+  // 重新设置锚点 = 让"第一个未完成课"从今天的学习时段开始
+  const firstUndone = schedule.find(s => !s.done);
+  if (!firstUndone) return;
+  // 找到"排程中这个课前面的已完成课数量"（即偏移量）
+  const offset = schedule.findIndex(s => s === firstUndone);
+  // 新锚点：从今天开始，倒推 offset 个时段的起点... 更简单方式：直接算"新锚点 = 让 offset 个课在今天之前完成"
+  // 直接用 epNextStudySlot 从今天往后找第一个学习时段作为锚点
+  const firstSlot = epNextStudySlot(today);
+  if (!firstSlot) return;
+  st.anchorTs = firstSlot.ts;
+  saveEpPhase1();
+}
+
+// 找合适的锚点：从 fromTs 开始，跳过之前的时段，返回"第一个学习时段"作为锚点
+function epPhase1FindFirstAnchor(fromTs) {
+  return epNextStudySlot(fromTs) ? epNextStudySlot(fromTs).ts : 0;
+}
+
+// 切换完成状态（打勾/打叉/重置）
+function epPhase1Toggle(key) {
+  const st = epPhase1State;
+  if (!st.progress) st.progress = {};
+  const cur = st.progress[key];
+  let next;
+  if (!cur) next = { done: true, completedAt: Date.now() };
+  else if (cur.done) next = { done: false };       // 打叉
+  else next = { done: true, completedAt: Date.now() }; // 再点即打勾
+  st.progress[key] = next;
+  saveEpPhase1();
+  epPhase1AutoAdjustAnchor();
+  renderEpPhase1();
+}
+
+// 手动重排：把锚点设为"今天的第一个学习时段"
+function resetEpPhase1Progress() {
+  if (!confirm('确定把全部课程重新从今天开始排吗？\n（已完成状态会保留，只是目标日期整体前移/后移）')) return;
+  const st = epPhase1State;
+  // 清除所有进度中未完成的记录（保留 done: true 的）
+  Object.keys(st.progress || {}).forEach(k => {
+    if (!st.progress[k].done) delete st.progress[k];
+  });
+  saveEpPhase1();
+  epPhase1AutoAdjustAnchor();
+  renderEpPhase1();
+  showStatus('已从今天重新排好，未完成的课都往前挪了', 'success');
+}
+
+// 渲染阶段一面板
+function renderEpPhase1() {
+  const box = document.getElementById('ep-phase1-content');
+  if (!box) return;
+  const st = epPhase1State;
+  if (!st.anchorTs) {
+    box.innerHTML = `<div style="padding:20px;text-align:center;color:#909399;">
+      <div style="font-size:30px;margin-bottom:10px;">📅</div>
+      <div style="margin-bottom:12px;">还没有开始排阶段一计划</div>
+      <button class="btn btn-primary btn-sm" onclick="epPhase1StartNow()">🚀 从今天开始排</button>
+      <div style="margin-top:8px;">或 <button class="btn btn-ghost btn-sm" onclick="editEpPhase1Videos()">✏️ 先编辑课程/路径</button></div>
+    </div>`;
+    return;
+  }
+  const schedule = epPhase1GenerateSchedule();
+  if (schedule.length === 0) {
+    box.innerHTML = '<div style="color:#909399;padding:20px;text-align:center;">没有排到任何课程（锚点太靠后或课程数为 0）</div>';
+    return;
+  }
+  const doneCount = schedule.filter(s => s.done).length;
+  const total = schedule.length;
+  const pct = Math.round(doneCount / total * 100);
+  const today00 = new Date(); today00.setHours(0, 0, 0, 0);
+  const today = today00.getTime();
+  const todayRows = schedule.filter(s => new Date(s.slotTs).toDateString() === new Date().toDateString());
+  const nextUndone = schedule.find(s => !s.done);
+
+  let html = `<div class="ep-ps-head">
+    <span class="title">阶段一进度</span>
+    <span class="sub">粉笔职测 ${st.fbTotal} 课 + 林英公基 ${st.lygTotal} 课 = ${total} 课时 &nbsp;·&nbsp; 已完成 ${doneCount} · 剩余 ${total - doneCount}${nextUndone ? ` &nbsp;·&nbsp; 下一课 ${fmtEpDate(nextUndone.slotTs)} ${nextUndone.isAM ? '上午' : '下午'}` : ' &nbsp;·&nbsp; 🎉 阶段一全部完成！'}</span>
+  </div>
+  <div class="ep-ps-progress"><i style="width:${pct}%;"></i><span class="ep-ps-progress-txt">${doneCount}/${total} · ${pct}%</span></div>`;
+
+  // 今日学习区
+  if (todayRows.length > 0) {
+    html += `<div class="ep-ps-today"><div class="tt">📌 今日（${fmtEpDate(today)}）计划</div>`;
+    todayRows.forEach(r => {
+      html += renderEpPhase1Row(r, true);
+    });
+    html += '</div>';
+  }
+
+  // 主列表：按日期分组，只显示"前2天 + 未来14天"（含今日），按天分组
+  const visibleRows = schedule.filter(s => {
+    const d0 = new Date(s.slotTs); d0.setHours(0, 0, 0, 0);
+    const diff = Math.round((d0.getTime() - today) / 86400000);
+    // 已完成的全部显示（方便回溯），未完成的只显示 diff 范围 [-7, +14]
+    if (s.done) return true;
+    return diff >= -7 && diff <= 14;
+  });
+  let lastDate = '';
+  visibleRows.forEach(r => {
+    const dText = fmtEpDate(r.slotTs);
+    if (dText !== lastDate) {
+      lastDate = dText;
+      const dow = ['周日','周一','周二','周三','周四','周五','周六'][new Date(r.slotTs).getDay()];
+      html += `<div style="margin:12px 0 4px;font-size:11px;color:#909399;font-weight:600;letter-spacing:1px;">${dText} · ${dow}</div>`;
+    }
+    html += renderEpPhase1Row(r, false);
+  });
+  if (visibleRows.length < schedule.length) {
+    html += `<div style="color:#909399;font-size:11px;text-align:center;padding:6px 0;">还有 ${schedule.length - visibleRows.length} 课未展开，已完成的会全部保留</div>`;
+  }
+
+  html += `<div class="ep-ps-footer">
+    <span>🔄 每日打开页面自动将未完成课程顺延；完成率 <b>${pct}%</b></span>
+    <span>锚点：${fmtEpDate(st.anchorTs)}</span>
+  </div>`;
+  box.innerHTML = html;
+}
+
+function renderEpPhase1Row(r, highlightToday) {
+  const d = new Date(r.slotTs);
+  const dow = ['周日','周一','周二','周三','周四','周五','周六'][d.getDay()];
+  const slotStr = `${d.getMonth()+1}/${d.getDate()} · ${dow}<br><span class="time">${r.isAM ? 'AM 09:00' : 'PM 14:00'}</span>`;
+  const tagClass = r.module === 'fb' ? 'tag-fb' : r.module === 'lyg' ? 'tag-lyg' : 'tag-fb2';
+  const tagText = r.module === 'fb' ? '粉笔' : r.module === 'lyg' ? '公基' : '粉笔';
+  const overdue = !r.done && r.slotTs < (() => { const t = new Date(); t.setHours(0,0,0,0); return t.getTime(); })();
+  const rowCls = ['ep-ps-row'];
+  if (highlightToday) rowCls.push('today');
+  if (r.done) rowCls.push('done');
+  if (overdue) rowCls.push('overdue');
+  const icon = r.done ? '✅' : '⬜';
+  const act = r.done ? '✅' : (overdue ? '❌' : '○');
+  // fullUrl 可能是 file:///... 或 http://...，也可能只是空（用户没填路径）
+  const openHtml = r.fullUrl
+    ? `<a href="${escapeHtml(r.fullUrl)}" target="_blank" title="打开视频">📂</a>`
+    : `<span style="color:#c0c4cc;" title="请先到 ✏️ 编辑课程里填路径">📂</span>`;
+  return `<div class="${rowCls.join(' ')}">
+    <div class="ep-ps-slot"><span class="dow">${d.getMonth()+1}/${d.getDate()} · ${dow}</span><div class="time">${r.isAM ? 'AM 09:00' : 'PM 14:00'}</div></div>
+    <div class="ep-ps-lesson"><span class="tag ${tagClass}">${tagText}</span><span class="lesson-text" data-key="${r.key}">${escapeHtml(r.videoName)}</span> &nbsp; ${openHtml}</div>
+    <div class="ep-ps-act"><span class="ep-ps-chk ${r.done ? 'done' : ''}" onclick="epPhase1Toggle('${r.key}')">${r.done ? '✓' : ''}</span></div>
+  </div>`;
+}
+
+function fmtEpDate(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function epPhase1StartNow() {
+  epPhase1AutoAdjustAnchor();
+  renderEpPhase1();
+  showStatus('已从今天开始排好第一阶段计划', 'success');
+}
+
+function editEpPhase1Videos() {
+  const st = epPhase1State;
+  if (!st.fbFiles || st.fbFiles.length !== st.fbTotal) {
+    // 默认填充"第N课"
+    st.fbFiles = Array.from({length: st.fbTotal}, (_, i) => `第${i+1}课`);
+  }
+  if (!st.lygFiles || st.lygFiles.length !== st.lygTotal) {
+    st.lygFiles = Array.from({length: st.lygTotal}, (_, i) => `第${i+1}课`);
+  }
+  openQuick(`
+    <div class="qm-title">✏️ 课程设置 · 阶段一</div>
+    <div class="qm-body">
+      <div style="font-size:12px;color:#909399;margin-bottom:10px;">填好后点下方按钮会自动保存。点击计划里的 📂 会直接打开本地视频。</div>
+      <div class="form-row"><label>📝 粉笔职测 · 视频基础目录</label><input type="text" id="qm-fb-base" value="${escapeHtml(st.fbBase || '')}" placeholder="file:///F:/.../职测/"></div>
+      <div class="form-row"><label>📚 林英公基 · 视频基础目录</label><input type="text" id="qm-lyg-base" value="${escapeHtml(st.lygBase || '')}" placeholder="file:///F:/.../公基/"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div class="form-row"><label>职测课时数（默认 34）</label><input type="number" id="qm-fb-total" value="${st.fbTotal}" min="1" max="100"></div>
+        <div class="form-row"><label>公基课时数（默认 21）</label><input type="number" id="qm-lyg-total" value="${st.lygTotal}" min="1" max="100"></div>
+      </div>
+      <div class="form-row" style="margin-top:10px;">
+        <label>📝 粉笔职测 · 课名列表（每行一个，会自动拼到基础目录后）</label>
+        <textarea id="qm-fb-files" rows="8" style="width:100%;border-radius:6px;border:1px solid #dcdfe6;padding:8px;font-size:12px;">${(st.fbFiles || []).join('\n')}</textarea>
+      </div>
+      <div class="form-row">
+        <label>📚 林英公基 · 课名列表</label>
+        <textarea id="qm-lyg-files" rows="6" style="width:100%;border-radius:6px;border:1px solid #dcdfe6;padding:8px;font-size:12px;">${(st.lygFiles || []).join('\n')}</textarea>
+      </div>
+    </div>
+    <div class="qm-confirm">
+      <button class="btn btn-ghost" onclick="closeQuick()">取消</button>
+      <button class="btn btn-primary" onclick="confirmEpPhase1Videos()">💾 保存</button>
+    </div>
+  `);
+}
+
+function confirmEpPhase1Videos() {
+  const fbBase = document.getElementById('qm-fb-base').value.trim();
+  const lygBase = document.getElementById('qm-lyg-base').value.trim();
+  const fbTotal = Math.max(1, Math.min(100, parseInt(document.getElementById('qm-fb-total').value) || 34));
+  const lygTotal = Math.max(1, Math.min(100, parseInt(document.getElementById('qm-lyg-total').value) || 21));
+  const fbFiles = document.getElementById('qm-fb-files').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const lygFiles = document.getElementById('qm-lyg-files').value.split('\n').map(s => s.trim()).filter(Boolean);
+  // 如果课名列表长度不够，自动补"第N课"
+  while (fbFiles.length < fbTotal) fbFiles.push(`第${fbFiles.length + 1}课`);
+  while (lygFiles.length < lygTotal) lygFiles.push(`第${lygFiles.length + 1}课`);
+  epPhase1State.fbBase = fbBase;
+  epPhase1State.lygBase = lygBase;
+  epPhase1State.fbTotal = fbTotal;
+  epPhase1State.lygTotal = lygTotal;
+  epPhase1State.fbFiles = fbFiles.slice(0, fbTotal);
+  epPhase1State.lygFiles = lygFiles.slice(0, lygTotal);
+  saveEpPhase1();
+  closeQuick();
+  if (!epPhase1State.anchorTs) {
+    epPhase1AutoAdjustAnchor();
+  }
+  renderEpPhase1();
+  showStatus('课程设置已保存', 'success');
+}
+
 function toggleEpCheck(key, el, isText) {
   if (isText) {
     epChecks[key] = el.value;
@@ -5185,6 +5590,7 @@ function renderExamPrep() {
   renderEpFocus();
   renderEpRest();
   switchEpFstat(epFstatPeriod);
+  renderEpPhase1();
   renderExamCountdown();
   renderDailyQuote();
   switchScoreTab('70');
