@@ -373,6 +373,9 @@
   .trip-card .trip-edit-btn { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.92); display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; z-index: 2; border: 1px solid rgba(0,0,0,0.08); }
   .trip-card .trip-edit-btn:hover { background: #667eea; color: #fff; }
   .trip-card .trip-body { padding: 12px 14px; }
+  .trip-card .trip-name-row { display: flex; align-items: flex-start; gap: 8px; }
+  .trip-card .trip-name-row .trip-name { flex: 1; min-width: 0; }
+  .trip-card .trip-days-chip { flex-shrink: 0; margin-top: 2px; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; color: #667eea; background: rgba(102,126,234,0.1); white-space: nowrap; }
   .trip-card .trip-name { font-size: 14px; font-weight: 700; color: #303133; line-height: 1.4; height: 38px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .trip-card .trip-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #909399; }
   .trip-card .trip-cost { font-size: 16px; font-weight: 800; color: #fa8c16; }
@@ -6392,6 +6395,14 @@ function fmtTripDate(ts) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// 按实际日期计算行程天数（含首尾），起止不完整时返回进行中/空
+function tripDaysText(t) {
+  if (!t.startDate) return '';
+  if (!t.endDate) return '进行中';
+  const days = Math.round((t.endDate - t.startDate) / 86400000) + 1;
+  return days > 0 ? `${days}日游` : '';
+}
+
 function calcTripStats(trip) {
   const expenses = trip.expenses || [];
   const incomes = trip.incomes || [];
@@ -6533,7 +6544,10 @@ function renderTripCard(t) {
       <div class="trip-edit-btn" onclick="event.stopPropagation();openTripModal(${t.id})">✎</div>
     </div>
     <div class="trip-body">
-      <div class="trip-name" title="${escapeHtml(t.name || '未命名')}">${escapeHtml(t.name || '未命名')}</div>
+      <div class="trip-name-row">
+        <div class="trip-name" title="${escapeHtml(t.name || '未命名')}">${escapeHtml(t.name || '未命名')}</div>
+        ${tripDaysText(t) ? `<span class="trip-days-chip">${tripDaysText(t)}</span>` : ''}
+      </div>
       <div class="trip-meta">
         <span>👥 ${memberCount} 人</span>
         <span>${fmtTripDate(t.startDate || t.createdAt)}${t.endDate ? ' ~ ' + fmtTripDate(t.endDate) : (t.startDate ? ' 至今' : '')}</span>
